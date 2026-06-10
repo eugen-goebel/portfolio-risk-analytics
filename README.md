@@ -67,6 +67,20 @@ Portfolio request body:
 
 Interactive documentation is served at `/docs`.
 
+## Docker
+
+```bash
+docker compose up
+```
+
+This starts PostgreSQL, the API on port 8000 and the dashboard on port 8501, all wired together. Load data into the running stack with:
+
+```bash
+docker compose exec api python main.py ingest SPY AAPL MSFT
+```
+
+CI builds the stack on every change, seeds demo data through the API container and checks both services before merging is allowed.
+
 ## Metrics
 
 | Metric | Definition |
