@@ -45,6 +45,13 @@ def sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.0) -> float:
     return (annual_return - risk_free_rate) / vol
 
 
+def drawdown_series(prices: pd.Series) -> pd.Series:
+    """Running drawdown relative to the historical peak, as decimals."""
+    if prices.empty:
+        return prices
+    return prices / prices.cummax() - 1.0
+
+
 def max_drawdown(prices: pd.Series) -> float:
     """Largest peak-to-trough loss as a negative decimal.
 
@@ -53,9 +60,7 @@ def max_drawdown(prices: pd.Series) -> float:
     """
     if prices.empty:
         return 0.0
-    running_peak = prices.cummax()
-    drawdowns = prices / running_peak - 1.0
-    return float(drawdowns.min())
+    return float(drawdown_series(prices).min())
 
 
 def total_return(prices: pd.Series) -> float:
