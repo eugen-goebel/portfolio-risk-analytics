@@ -1,0 +1,115 @@
+"""REST API for stored market data and portfolio risk metrics.
+
+Run locally with:
+    uv run uvicorn api.main:app --reload
+"""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from analytics.loader import load_close_frame, load_close_series
+from analytics.metrics import MetricsSummary, correlation_matrix, portfolio_returns, summarize
+from analytics.metrics import annualized_volatility as ann_vol
+from analytics.metrics import max_drawdown as mdd
+from analytics.metrics import sharpe_ratio as sharpe
+from db.database import get_db, init_db
+from db.models import Asset, DailyPrice
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    init_db()
+    yield
+
+
+app = FastAPI(
+    title="Portfolio Risk Analytics",
+    description="Market data and portfolio risk metrics on daily prices",
+    lifespan=lifespan,
+)
+
+
+class AssetOut(BaseModel):
+    symbol: str
+    name: str
+    price_count: int
+
+
+class PricePoint(BaseModel):
+    day: str
+    close: float
+
+
+class PortfolioRequest(BaseModel):
+    weights: dict[str, float] = Field(description="Symbol to weight, weights sum to 1")
+    risk_free_rate: float = 0.0
+
+
+class PortfolioMetrics(BaseModel):
+    annualized_volatility_pct: float
+    sharpe_ratio: float
+    max_drawdown_pct: float
+    correlations: dict[str, dict[str, float]]
+
+
+@app.get("/", tags=["Health"])
+def root() -> dict[str, str]:
+    return {"status": "running", "docs": "/docs"}
+
+
+@app.get("/assets", response_model=list[AssetOut], tags=["Assets"])
+def list_assets(db: Session = Depends(get_db)) -> list[AssetOut]:
+    rows = db.execute(
+        select(Asset.symbol, Asset.name, func.count(DailyPrice.id))
+        .outerjoin(DailyPrice)
+        .group_by(Asset.id)
+        .order_by(Asset.symbol)
+    ).all()
+    return [AssetOut(symbol=r[0], name=r[1], price_count=r[2]) for r in rows]
+
+
+@app.get("/assets/{symbol}/prices", response_model=list[PricePoint], tags=["Assets"])
+def get_prices(symbol: str, limit: int = 250, db: Session = Depends(get_db)) -> list[PricePoint]:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    tail = series.tail(limit)
+    return [PricePoint(day=str(d.date()), close=float(v)) for d, v in tail.items()]
+
+
+@app.get("/assets/{symbol}/metrics", response_model=MetricsSummary, tags=["Metrics"])
+def get_metrics(
+    symbol: str, risk_free_rate: float = 0.0, db: Session = Depends(get_db)
+) -> MetricsSummary:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return summarize(symbol, series, risk_free_rate)
+
+
+@app.post("/portfolio/metrics", response_model=PortfolioMetrics, tags=["Metrics"])
+def get_portfolio_metrics(
+    request: PortfolioRequest, db: Session = Depends(get_db)
+) -> PortfolioMetrics:
+    symbols = list(request.weights)
+    try:
+        frame = load_close_frame(db, symbols)
+        returns = portfolio_returns(frame, request.weights)
+    except (LookupError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    portfolio_prices = (1 + returns).cumprod()
+    corr = correlation_matrix(frame)
+    return PortfolioMetrics(
+        annualized_volatility_pct=round(ann_vol(returns) * 100, 2),
+        sharpe_ratio=round(sharpe(returns, request.risk_free_rate), 3),
+        max_drawdown_pct=round(mdd(portfolio_prices) * 100, 2),
+        correlations={c: {i: round(float(v), 3) for i, v in corr[c].items()} for c in corr.columns},
+    )
