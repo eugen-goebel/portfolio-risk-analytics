@@ -35,6 +35,14 @@ Max drawdown:          -24.50%
 
 Without network access, `uv run main.py ingest --demo demo-a demo-b` generates deterministic demo data.
 
+## Dashboard
+
+```bash
+uv run streamlit run app.py
+```
+
+The dashboard has two views. Single Asset shows the headline metrics, the price history and the running drawdown for one symbol. Portfolio takes a set of assets with weights, normalizes them, and shows portfolio volatility, Sharpe ratio, max drawdown, the cumulative value curve and a correlation heatmap. With an empty database it offers to load demo data.
+
 ## REST API
 
 ```bash

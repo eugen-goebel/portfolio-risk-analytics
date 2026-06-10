@@ -9,6 +9,7 @@ from analytics.metrics import (
     annualized_volatility,
     correlation_matrix,
     daily_returns,
+    drawdown_series,
     max_drawdown,
     portfolio_returns,
     sharpe_ratio,
@@ -50,6 +51,15 @@ class TestSharpe:
     def test_risk_free_rate_lowers_sharpe(self):
         r = daily_returns(series([100, 101, 100.5, 102, 103, 102.5, 104]))
         assert sharpe_ratio(r, risk_free_rate=0.05) < sharpe_ratio(r, risk_free_rate=0.0)
+
+
+class TestDrawdownSeries:
+    def test_running_drawdown(self):
+        dd = drawdown_series(series([100.0, 120.0, 90.0, 100.0]))
+        assert dd.iloc[0] == pytest.approx(0.0)
+        assert dd.iloc[2] == pytest.approx(-0.25)
+        # partial recovery: 100/120 - 1
+        assert dd.iloc[3] == pytest.approx(-1 / 6)
 
 
 class TestMaxDrawdown:
