@@ -25,9 +25,10 @@ def generate_demo_bars(symbol: str, days: int = 500, start_price: float = 100.0)
         day += timedelta(days=1)
         if day.weekday() >= 5:
             continue
-        close = price * (1 + r)
-        high = max(price, close) * (1 + abs(rng.normal(0, 0.003)))
-        low = min(price, close) * (1 - abs(rng.normal(0, 0.003)))
+        # plain Python floats: psycopg2 rejects numpy scalars
+        close = float(price * (1 + r))
+        high = float(max(price, close) * (1 + abs(rng.normal(0, 0.003))))
+        low = float(min(price, close) * (1 - abs(rng.normal(0, 0.003))))
         bars.append(
             PriceBar(
                 day=day,
