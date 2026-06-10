@@ -87,3 +87,34 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql+psycopg2://app:app@localhost:5432/market_test
         run: uv run pytest -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build and start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for the API
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8000/ >/dev/null; then echo "API is up"; exit 0; fi
+            sleep 3
+          done
+          echo "API did not become healthy"
+          docker compose logs
+          exit 1
+
+      - name: Seed demo data through the API container
+        run: docker compose exec -T api python main.py ingest --demo demo-a demo-b
+
+      - name: Verify the data is served
+        run: curl -fsS http://localhost:8000/assets | grep -q "demo-a"
+
+      - name: Check the dashboard health endpoint
+        run: curl -fsS http://localhost:8501/_stcore/health
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
