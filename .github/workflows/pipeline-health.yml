@@ -1,0 +1,41 @@
+name: Data pipeline health
+
+on:
+  schedule:
+    # after each US trading day, Tuesday to Saturday UTC
+    - cron: "30 5 * * 2-6"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ingest real prices into a scratch database
+        run: uv run main.py ingest SPY AAPL MSFT
+
+      - name: Verify the data is fresh
+        run: |
+          uv run python - <<'PY'
+          from datetime import date
+
+          from analytics.loader import load_close_series
+          from db.database import SessionLocal
+
+          db = SessionLocal()
+          series = load_close_series(db, "SPY")
+          latest = series.index.max().date()
+          age = (date.today() - latest).days
+          print(f"{len(series)} rows stored, latest bar {latest} ({age} days old)")
+          assert len(series) > 1000, "too few rows came back"
+          assert age <= 7, f"latest bar is {age} days old"
+          PY

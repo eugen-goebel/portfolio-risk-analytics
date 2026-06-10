@@ -1,6 +1,7 @@
 # Portfolio Risk Analytics
 
 ![Tests](https://github.com/eugen-goebel/portfolio-risk-analytics/actions/workflows/tests.yml/badge.svg)
+![Data pipeline](https://github.com/eugen-goebel/portfolio-risk-analytics/actions/workflows/pipeline-health.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
