@@ -1,6 +1,6 @@
 [project]
 name = "portfolio-risk-analytics"
-version = "0.1.0"
+version = "1.0.0"
 description = "Market data platform with a daily ingestion pipeline, PostgreSQL storage and portfolio risk analytics"
 requires-python = ">=3.12"
 dependencies = [
