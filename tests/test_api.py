@@ -99,6 +99,21 @@ class TestMetrics:
     def test_drift_short_history_is_400(self, client):
         assert client.get("/assets/demo-a/drift?recent_size=200").status_code == 400
 
+    def test_portfolio_backtest(self, client):
+        body = client.post(
+            "/portfolio/backtest",
+            json={"weights": {"demo-a": 0.6, "demo-b": 0.4}},
+        ).json()
+        assert body["symbols"] == ["demo-a", "demo-b"]
+        assert body["rebalance"] == "monthly"
+        assert body["observations"] > 0
+        assert body["rebalanced"]["final_value"] > 0
+        assert body["buy_and_hold"]["final_value"] > 0
+
+    def test_backtest_bad_weights_are_400(self, client):
+        resp = client.post("/portfolio/backtest", json={"weights": {"demo-a": 0.5}})
+        assert resp.status_code == 400
+
     def test_bad_weights_are_400(self, client):
         resp = client.post("/portfolio/metrics", json={"weights": {"demo-a": 0.5}})
         assert resp.status_code == 400

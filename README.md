@@ -108,6 +108,22 @@ CI builds the stack on every change, seeds demo data through the API container a
 
 The benchmark-relative metrics are served at `GET /assets/{symbol}/benchmark` and through `uv run main.py benchmark AAPL --benchmark SPY`. The metric functions are tested against hand-computed values, not against their own output.
 
+## Backtesting
+
+The backtest simulates the same target weights twice over the stored history: once bought and held, where the weights drift with performance, and once rebalanced back to target on the first trading day of each month or quarter. Both value paths are summarized with the usual risk metrics, so the comparison shows directly what rebalancing discipline costs or earns against buy and hold.
+
+```
+POST /portfolio/backtest
+```
+
+```json
+{
+  "weights": {"SPY": 0.6, "AAPL": 0.4},
+  "rebalance": "monthly",
+  "risk_free_rate": 0.03
+}
+```
+
 ## Volatility forecasting
 
 Daily returns are close to unpredictable, their volatility is not: turbulent days cluster. The forecast module compares three one-day-ahead volatility forecasters in a walk-forward test where no model ever sees the future.
@@ -151,7 +167,7 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 80 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 93 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 

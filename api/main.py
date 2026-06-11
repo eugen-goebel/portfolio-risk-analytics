@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from analytics.backtest import BacktestReport, run_backtest
 from analytics.drift import DriftReport, evaluate_drift
 from analytics.forecast import ForecastReport, evaluate_models
 from analytics.loader import load_close_frame, load_close_series
@@ -59,6 +60,12 @@ class PricePoint(BaseModel):
 
 class PortfolioRequest(BaseModel):
     weights: dict[str, float] = Field(description="Symbol to weight, weights sum to 1")
+    risk_free_rate: float = 0.0
+
+
+class BacktestRequest(BaseModel):
+    weights: dict[str, float] = Field(description="Symbol to weight, weights sum to 1")
+    rebalance: str = "monthly"
     risk_free_rate: float = 0.0
 
 
@@ -178,3 +185,15 @@ def get_portfolio_metrics(
         expected_shortfall_95_pct=round(expected_shortfall(returns) * 100, 2),
         correlations={c: {i: round(float(v), 3) for i, v in corr[c].items()} for c in corr.columns},
     )
+
+
+@app.post("/portfolio/backtest", response_model=BacktestReport, tags=["Metrics"])
+def run_portfolio_backtest(
+    request: BacktestRequest, db: Session = Depends(get_db)
+) -> BacktestReport:
+    symbols = list(request.weights)
+    try:
+        frame = load_close_frame(db, symbols)
+        return run_backtest(frame, request.weights, request.rebalance, request.risk_free_rate)
+    except (LookupError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
