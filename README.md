@@ -94,6 +94,33 @@ CI builds the stack on every change, seeds demo data through the API container a
 
 The metric functions are tested against hand-computed values, not against their own output.
 
+## Volatility forecasting
+
+Daily returns are close to unpredictable, their volatility is not: turbulent days cluster. The forecast module compares three one-day-ahead volatility forecasters in a walk-forward test where no model ever sees the future.
+
+| Model | Idea |
+|-------|------|
+| rolling | Trailing 22-day mean squared return, the naive baseline |
+| ewma | RiskMetrics exponentially weighted recursion (decay 0.94) |
+| har | Heterogeneous autoregressive regression on daily, weekly and monthly squared returns, fit by least squares |
+
+```bash
+uv run main.py forecast SPY
+```
+
+```
+Walk-forward test over the last 250 trading days
+
+model         MAE %   RMSE %  next-day vol (ann.) %
+rolling      0.4265   0.5464                  13.07
+ewma         0.4527   0.5641                  14.09
+har          0.5282   0.6193                  17.99
+
+Lowest RMSE: rolling
+```
+
+The comparison is also served at `GET /assets/{symbol}/forecast`. Whichever model wins depends on the market regime, in calm stretches the simple baseline is hard to beat, which is exactly what the honest test shows.
+
 ## Architecture
 
 ```

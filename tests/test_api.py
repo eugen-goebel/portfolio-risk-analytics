@@ -59,6 +59,16 @@ class TestMetrics:
         assert body["annualized_volatility_pct"] > 0
         assert body["correlations"]["demo-a"]["demo-a"] == pytest.approx(1.0)
 
+    def test_forecast(self, client):
+        body = client.get("/assets/demo-a/forecast?test_size=60").json()
+        assert body["symbol"] == "demo-a"
+        assert body["test_observations"] == 60
+        assert body["best_model"] in {"rolling", "ewma", "har"}
+        assert len(body["scores"]) == 3
+
+    def test_forecast_unknown_symbol_is_404(self, client):
+        assert client.get("/assets/nope/forecast").status_code == 404
+
     def test_bad_weights_are_400(self, client):
         resp = client.post("/portfolio/metrics", json={"weights": {"demo-a": 0.5}})
         assert resp.status_code == 400
