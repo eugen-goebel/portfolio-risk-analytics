@@ -62,22 +62,54 @@ def cmd_metrics(symbol: str, risk_free_rate: float) -> int:
     return 0
 
 
+def cmd_forecast(symbol: str, test_size: int) -> int:
+    from analytics.forecast import evaluate_models
+    from analytics.loader import load_close_series
+    from analytics.metrics import daily_returns
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+            report = evaluate_models(symbol, daily_returns(series), test_size)
+        except (LookupError, ValueError) as exc:
+            print(exc)
+            return 1
+    finally:
+        db.close()
+
+    print(f"Walk-forward test over the last {report.test_observations} trading days\n")
+    print(f"{'model':<10} {'MAE %':>8} {'RMSE %':>8} {'next-day vol (ann.) %':>22}")
+    for score in report.scores:
+        nd = report.next_day_volatility_pct[score.model]
+        print(f"{score.model:<10} {score.mae_pct:>8.4f} {score.rmse_pct:>8.4f} {nd:>22.2f}")
+    print(f"\nLowest RMSE: {report.best_model}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Portfolio risk analytics")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_ingest = sub.add_parser("ingest", help="Download and store daily prices")
-    p_ingest.add_argument("symbols", nargs="+", help="Stooq symbols, e.g. SPY AAPL")
+    p_ingest.add_argument("symbols", nargs="+", help="Symbols, e.g. SPY AAPL")
     p_ingest.add_argument("--demo", action="store_true", help="Generate offline demo data")
 
     p_metrics = sub.add_parser("metrics", help="Show risk metrics for a stored symbol")
     p_metrics.add_argument("symbol")
     p_metrics.add_argument("--risk-free-rate", type=float, default=0.0)
 
+    p_forecast = sub.add_parser("forecast", help="Compare volatility forecasters for a symbol")
+    p_forecast.add_argument("symbol")
+    p_forecast.add_argument("--test-size", type=int, default=250)
+
     args = parser.parse_args()
     if args.command == "ingest":
         return cmd_ingest(args.symbols, args.demo)
-    return cmd_metrics(args.symbol, args.risk_free_rate)
+    if args.command == "metrics":
+        return cmd_metrics(args.symbol, args.risk_free_rate)
+    return cmd_forecast(args.symbol, args.test_size)
 
 
 if __name__ == "__main__":

@@ -12,8 +12,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from analytics.forecast import ForecastReport, evaluate_models
 from analytics.loader import load_close_frame, load_close_series
-from analytics.metrics import MetricsSummary, correlation_matrix, portfolio_returns, summarize
+from analytics.metrics import (
+    MetricsSummary,
+    correlation_matrix,
+    daily_returns,
+    portfolio_returns,
+    summarize,
+)
 from analytics.metrics import annualized_volatility as ann_vol
 from analytics.metrics import max_drawdown as mdd
 from analytics.metrics import sharpe_ratio as sharpe
@@ -92,6 +99,20 @@ def get_metrics(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return summarize(symbol, series, risk_free_rate)
+
+
+@app.get("/assets/{symbol}/forecast", response_model=ForecastReport, tags=["Metrics"])
+def get_forecast(
+    symbol: str, test_size: int = 250, db: Session = Depends(get_db)
+) -> ForecastReport:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        return evaluate_models(symbol, daily_returns(series), test_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/portfolio/metrics", response_model=PortfolioMetrics, tags=["Metrics"])
