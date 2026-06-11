@@ -5,6 +5,7 @@ Examples:
     uv run main.py ingest --demo demo-a demo-b
     uv run main.py ingest-fx USD GBP
     uv run main.py metrics SPY
+    uv run main.py benchmark AAPL --benchmark SPY
     uv run main.py drift SPY
 """
 
@@ -88,6 +89,35 @@ def cmd_metrics(symbol: str, risk_free_rate: float) -> int:
     return 0
 
 
+def cmd_benchmark(symbol: str, benchmark: str, risk_free_rate: float) -> int:
+    from analytics.loader import load_close_series
+    from analytics.metrics import compare_to_benchmark
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+            benchmark_series = load_close_series(db, benchmark)
+            report = compare_to_benchmark(
+                symbol, series, benchmark, benchmark_series, risk_free_rate
+            )
+        except (LookupError, ValueError) as exc:
+            print(exc)
+            return 1
+    finally:
+        db.close()
+
+    print(f"Symbol:            {report.symbol}")
+    print(f"Benchmark:         {report.benchmark}")
+    print(f"Observations:      {report.observations}")
+    print(f"Beta:              {report.beta:.3f}")
+    print(f"Alpha:             {report.alpha_pct:+.2f}%")
+    print(f"Tracking error:    {report.tracking_error_pct:.2f}%")
+    print(f"Information ratio: {report.information_ratio:.3f}")
+    return 0
+
+
 def cmd_forecast(symbol: str, test_size: int) -> int:
     from analytics.forecast import evaluate_models
     from analytics.loader import load_close_series
@@ -157,6 +187,11 @@ def main() -> int:
     p_metrics.add_argument("symbol")
     p_metrics.add_argument("--risk-free-rate", type=float, default=0.0)
 
+    p_benchmark = sub.add_parser("benchmark", help="Compare a stored symbol against a benchmark")
+    p_benchmark.add_argument("symbol")
+    p_benchmark.add_argument("--benchmark", default="SPY")
+    p_benchmark.add_argument("--risk-free-rate", type=float, default=0.0)
+
     p_forecast = sub.add_parser("forecast", help="Compare volatility forecasters for a symbol")
     p_forecast.add_argument("symbol")
     p_forecast.add_argument("--test-size", type=int, default=250)
@@ -173,6 +208,8 @@ def main() -> int:
         return cmd_ingest_fx(args.currencies)
     if args.command == "metrics":
         return cmd_metrics(args.symbol, args.risk_free_rate)
+    if args.command == "benchmark":
+        return cmd_benchmark(args.symbol, args.benchmark, args.risk_free_rate)
     if args.command == "forecast":
         return cmd_forecast(args.symbol, args.test_size)
     return cmd_drift(args.symbol, args.reference_size, args.recent_size)

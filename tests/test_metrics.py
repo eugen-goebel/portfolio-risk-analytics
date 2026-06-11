@@ -7,16 +7,21 @@ import pytest
 
 from analytics.metrics import (
     annualized_volatility,
+    beta,
+    capm_alpha,
+    compare_to_benchmark,
     correlation_matrix,
     daily_returns,
     drawdown_series,
     expected_shortfall,
     historical_var,
+    information_ratio,
     max_drawdown,
     portfolio_returns,
     sharpe_ratio,
     summarize,
     total_return,
+    tracking_error,
 )
 
 
@@ -149,3 +154,42 @@ class TestTailRisk:
     def test_single_observation_is_zero(self):
         assert historical_var(pd.Series([-0.02])) == 0.0
         assert expected_shortfall(pd.Series([-0.02])) == 0.0
+
+
+class TestBenchmark:
+    BENCH_RETURNS = pd.Series([0.01, -0.02, 0.015, 0.005, -0.01])
+
+    def test_doubled_returns_have_beta_two(self):
+        # cov(2x, x) = 2 var(x), so beta is exactly 2
+        assert beta(self.BENCH_RETURNS * 2, self.BENCH_RETURNS) == 2.0
+
+    def test_pure_beta_exposure_has_zero_alpha(self):
+        # asset_annual = 2 * bench_annual, so alpha = 2b - 2b = 0
+        assert capm_alpha(self.BENCH_RETURNS * 2, self.BENCH_RETURNS) == pytest.approx(0.0)
+
+    def test_identical_series(self):
+        # a perfect tracker: beta 1, no active risk, ratio guarded to 0
+        assert beta(self.BENCH_RETURNS, self.BENCH_RETURNS) == pytest.approx(1.0)
+        assert tracking_error(self.BENCH_RETURNS, self.BENCH_RETURNS) == 0.0
+        assert information_ratio(self.BENCH_RETURNS, self.BENCH_RETURNS) == 0.0
+
+    def test_flat_benchmark_has_zero_beta(self):
+        flat = pd.Series([0.0, 0.0, 0.0, 0.0, 0.0])
+        assert beta(self.BENCH_RETURNS, flat) == 0.0
+
+    def test_compare_aligns_mismatched_date_ranges(self):
+        idx = pd.date_range("2024-01-01", periods=70, freq="B")
+        asset = pd.Series([100.0 + i for i in range(60)], index=idx[:60])
+        bench = pd.Series([50.0 + i for i in range(60)], index=idx[10:70])
+        report = compare_to_benchmark("asset", asset, "bench", bench)
+        # 50 common dates leave 49 return observations
+        assert report.observations == 49
+        assert report.benchmark == "bench"
+
+    def test_compare_rejects_short_overlap(self):
+        idx = pd.date_range("2024-01-01", periods=50, freq="B")
+        asset = pd.Series([100.0 + i for i in range(35)], index=idx[:35])
+        bench = pd.Series([100.0 + i for i in range(35)], index=idx[15:50])
+        # only 20 common dates, below the 30 required
+        with pytest.raises(ValueError, match="common observations"):
+            compare_to_benchmark("asset", asset, "bench", bench)

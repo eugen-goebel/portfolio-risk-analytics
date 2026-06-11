@@ -84,6 +84,18 @@ class TestMetrics:
     def test_drift_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/drift").status_code == 404
 
+    def test_benchmark(self, client):
+        body = client.get("/assets/demo-a/benchmark?benchmark=demo-b").json()
+        assert body["symbol"] == "demo-a"
+        assert body["benchmark"] == "demo-b"
+        assert body["observations"] > 0
+        assert body["tracking_error_pct"] >= 0
+
+    def test_benchmark_unknown_benchmark_is_404(self, client):
+        resp = client.get("/assets/demo-a/benchmark?benchmark=nope")
+        assert resp.status_code == 404
+        assert "nope" in resp.json()["detail"]
+
     def test_drift_short_history_is_400(self, client):
         assert client.get("/assets/demo-a/drift?recent_size=200").status_code == 400
 

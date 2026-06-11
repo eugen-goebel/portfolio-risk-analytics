@@ -16,7 +16,9 @@ from analytics.drift import DriftReport, evaluate_drift
 from analytics.forecast import ForecastReport, evaluate_models
 from analytics.loader import load_close_frame, load_close_series
 from analytics.metrics import (
+    BenchmarkReport,
     MetricsSummary,
+    compare_to_benchmark,
     correlation_matrix,
     daily_returns,
     expected_shortfall,
@@ -130,6 +132,27 @@ def get_drift(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
         return evaluate_drift(symbol, daily_returns(series), reference_size, recent_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/assets/{symbol}/benchmark", response_model=BenchmarkReport, tags=["Metrics"])
+def get_benchmark(
+    symbol: str,
+    benchmark: str = "SPY",
+    risk_free_rate: float = 0.0,
+    db: Session = Depends(get_db),
+) -> BenchmarkReport:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        benchmark_series = load_close_series(db, benchmark)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        return compare_to_benchmark(symbol, series, benchmark, benchmark_series, risk_free_rate)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
