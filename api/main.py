@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from analytics.drift import DriftReport, evaluate_drift
 from analytics.forecast import ForecastReport, evaluate_models
 from analytics.loader import load_close_frame, load_close_series
 from analytics.metrics import (
@@ -115,6 +116,20 @@ def get_forecast(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
         return evaluate_models(symbol, daily_returns(series), test_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/assets/{symbol}/drift", response_model=DriftReport, tags=["Metrics"])
+def get_drift(
+    symbol: str, reference_size: int = 500, recent_size: int = 60, db: Session = Depends(get_db)
+) -> DriftReport:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        return evaluate_drift(symbol, daily_returns(series), reference_size, recent_size)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -73,6 +73,20 @@ class TestMetrics:
     def test_forecast_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/forecast").status_code == 404
 
+    def test_drift(self, client):
+        body = client.get("/assets/demo-a/drift").json()
+        assert body["symbol"] == "demo-a"
+        assert body["recent_size"] == 60
+        assert body["psi"] >= 0
+        assert 0 <= body["ks"] <= 1
+        assert isinstance(body["drift_detected"], bool)
+
+    def test_drift_unknown_symbol_is_404(self, client):
+        assert client.get("/assets/nope/drift").status_code == 404
+
+    def test_drift_short_history_is_400(self, client):
+        assert client.get("/assets/demo-a/drift?recent_size=200").status_code == 400
+
     def test_bad_weights_are_400(self, client):
         resp = client.post("/portfolio/metrics", json={"weights": {"demo-a": 0.5}})
         assert resp.status_code == 400

@@ -131,6 +131,14 @@ Lowest RMSE: rolling
 
 The comparison is also served at `GET /assets/{symbol}/forecast`. Whichever model wins depends on the market regime, in calm stretches the simple baseline is hard to beat, which is exactly what the honest test shows.
 
+## Drift monitoring
+
+A forecast fitted on a long reference window assumes that recent returns still look like that history, so the drift module compares the last 60 returns against the 500 before them. The population stability index measures how the share of observations per reference quantile bin has shifted, the Kolmogorov-Smirnov statistic is the largest distance between the two empirical distribution functions. A PSI above 0.2 or a KS statistic above 0.15 flags drift at the conventional industry thresholds, also served at `GET /assets/{symbol}/drift`.
+
+```bash
+uv run main.py drift SPY
+```
+
 ## Architecture
 
 ```
@@ -139,7 +147,7 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 57 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 72 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 

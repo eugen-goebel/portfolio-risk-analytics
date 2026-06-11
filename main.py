@@ -5,6 +5,7 @@ Examples:
     uv run main.py ingest --demo demo-a demo-b
     uv run main.py ingest-fx USD GBP
     uv run main.py metrics SPY
+    uv run main.py drift SPY
 """
 
 import argparse
@@ -113,6 +114,34 @@ def cmd_forecast(symbol: str, test_size: int) -> int:
     return 0
 
 
+def cmd_drift(symbol: str, reference_size: int, recent_size: int) -> int:
+    from analytics.drift import evaluate_drift
+    from analytics.loader import load_close_series
+    from analytics.metrics import daily_returns
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+            report = evaluate_drift(symbol, daily_returns(series), reference_size, recent_size)
+        except (LookupError, ValueError) as exc:
+            print(exc)
+            return 1
+    finally:
+        db.close()
+
+    print(f"Symbol:           {report.symbol}")
+    print(f"Reference window: {report.reference_size} observations")
+    print(f"Recent window:    {report.recent_size} observations")
+    print(f"PSI:              {report.psi:.4f}")
+    print(f"KS statistic:     {report.ks:.4f}")
+    print(f"Mean shift:       {report.mean_shift:+.4f}% daily")
+    print(f"Volatility ratio: {report.volatility_ratio:.4f}")
+    print(f"Drift detected:   {'yes' if report.drift_detected else 'no'}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Portfolio risk analytics")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -132,6 +161,11 @@ def main() -> int:
     p_forecast.add_argument("symbol")
     p_forecast.add_argument("--test-size", type=int, default=250)
 
+    p_drift = sub.add_parser("drift", help="Check a symbol for return distribution drift")
+    p_drift.add_argument("symbol")
+    p_drift.add_argument("--reference-size", type=int, default=500)
+    p_drift.add_argument("--recent-size", type=int, default=60)
+
     args = parser.parse_args()
     if args.command == "ingest":
         return cmd_ingest(args.symbols, args.demo)
@@ -139,7 +173,9 @@ def main() -> int:
         return cmd_ingest_fx(args.currencies)
     if args.command == "metrics":
         return cmd_metrics(args.symbol, args.risk_free_rate)
-    return cmd_forecast(args.symbol, args.test_size)
+    if args.command == "forecast":
+        return cmd_forecast(args.symbol, args.test_size)
+    return cmd_drift(args.symbol, args.reference_size, args.recent_size)
 
 
 if __name__ == "__main__":
