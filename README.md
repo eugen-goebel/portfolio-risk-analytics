@@ -36,6 +36,14 @@ Max drawdown:          -24.50%
 
 Without network access, `uv run main.py ingest --demo demo-a demo-b` generates deterministic demo data.
 
+### Exchange rates
+
+```bash
+uv run main.py ingest-fx USD GBP
+```
+
+Daily reference rates come from the official ECB data API, also without a key, and are stored as EURUSD and EURGBP so the metrics and forecast commands work on them directly.
+
 ## Dashboard
 
 ```bash
@@ -125,11 +133,11 @@ The comparison is also served at `GET /assets/{symbol}/forecast`. Whichever mode
 
 ```
 portfolio-risk-analytics/
-├── ingestion/     # Yahoo Finance client, demo data generator, idempotent storage
+├── ingestion/     # Yahoo Finance and ECB clients, demo data generator, idempotent storage
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 33 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 52 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
