@@ -3,6 +3,7 @@
 Examples:
     uv run main.py ingest SPY AAPL
     uv run main.py ingest --demo demo-a demo-b
+    uv run main.py ingest-fx USD GBP
     uv run main.py metrics SPY
 """
 
@@ -31,6 +32,30 @@ def cmd_ingest(symbols: list[str], demo: bool) -> int:
                     print(f"{symbol}: {exc}")
                     return 1
             inserted = store_bars(db, symbol, bars)
+            print(f"{symbol}: {inserted} new rows ({len(bars)} fetched)")
+    finally:
+        db.close()
+    return 0
+
+
+def cmd_ingest_fx(currencies: list[str]) -> int:
+    from ingestion.base import ProviderError
+    from ingestion.ecb import fetch_daily_fx
+    from ingestion.store import store_bars
+
+    init_db()
+    db = SessionLocal()
+    try:
+        for currency in currencies:
+            currency = currency.upper()
+            try:
+                bars = fetch_daily_fx(currency)
+            except ProviderError as exc:
+                print(f"{currency}: {exc}")
+                return 1
+            symbol = f"EUR{currency}"
+            name = f"ECB reference rate {currency} per EUR"
+            inserted = store_bars(db, symbol, bars, name)
             print(f"{symbol}: {inserted} new rows ({len(bars)} fetched)")
     finally:
         db.close()
@@ -96,6 +121,9 @@ def main() -> int:
     p_ingest.add_argument("symbols", nargs="+", help="Symbols, e.g. SPY AAPL")
     p_ingest.add_argument("--demo", action="store_true", help="Generate offline demo data")
 
+    p_fx = sub.add_parser("ingest-fx", help="Download and store ECB reference exchange rates")
+    p_fx.add_argument("currencies", nargs="+", help="Currency codes, e.g. USD GBP")
+
     p_metrics = sub.add_parser("metrics", help="Show risk metrics for a stored symbol")
     p_metrics.add_argument("symbol")
     p_metrics.add_argument("--risk-free-rate", type=float, default=0.0)
@@ -107,6 +135,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "ingest":
         return cmd_ingest(args.symbols, args.demo)
+    if args.command == "ingest-fx":
+        return cmd_ingest_fx(args.currencies)
     if args.command == "metrics":
         return cmd_metrics(args.symbol, args.risk_free_rate)
     return cmd_forecast(args.symbol, args.test_size)
