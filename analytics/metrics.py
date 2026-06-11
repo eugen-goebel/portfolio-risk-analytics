@@ -18,6 +18,8 @@ class MetricsSummary(BaseModel):
     annualized_volatility_pct: float
     sharpe_ratio: float
     max_drawdown_pct: float
+    var_95_pct: float
+    expected_shortfall_95_pct: float
 
 
 def daily_returns(prices: pd.Series) -> pd.Series:
@@ -63,6 +65,35 @@ def max_drawdown(prices: pd.Series) -> float:
     return float(drawdown_series(prices).min())
 
 
+def historical_var(returns: pd.Series, confidence: float = 0.95) -> float:
+    """Historical Value at Risk as a positive decimal.
+
+    The (1 - confidence) empirical quantile of daily returns with
+    linear interpolation, sign-flipped: a value of 0.02 means the worst
+    five percent of days lost two percent or more. Floored at 0.0 so a
+    strictly positive quantile never yields a negative VaR.
+    """
+    if len(returns) < 2:
+        return 0.0
+    return max(0.0, float(-returns.quantile(1 - confidence)))
+
+
+def expected_shortfall(returns: pd.Series, confidence: float = 0.95) -> float:
+    """Mean loss beyond the VaR threshold as a positive decimal.
+
+    Average of the daily returns at or below the (1 - confidence)
+    quantile, sign-flipped, so it is never smaller than the VaR at the
+    same confidence. Floored at 0.0, and 0.0 when no observation falls
+    in the tail or the series is too short.
+    """
+    if len(returns) < 2:
+        return 0.0
+    tail = returns[returns <= returns.quantile(1 - confidence)]
+    if tail.empty:
+        return 0.0
+    return max(0.0, float(-tail.mean()))
+
+
 def total_return(prices: pd.Series) -> float:
     """Overall return from the first to the last observation."""
     if len(prices) < 2:
@@ -103,4 +134,6 @@ def summarize(symbol: str, prices: pd.Series, risk_free_rate: float = 0.0) -> Me
         annualized_volatility_pct=round(annualized_volatility(returns) * 100, 2),
         sharpe_ratio=round(sharpe_ratio(returns, risk_free_rate), 3),
         max_drawdown_pct=round(max_drawdown(prices) * 100, 2),
+        var_95_pct=round(historical_var(returns) * 100, 2),
+        expected_shortfall_95_pct=round(expected_shortfall(returns) * 100, 2),
     )

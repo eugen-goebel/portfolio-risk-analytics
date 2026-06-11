@@ -18,6 +18,8 @@ from analytics.metrics import (
     MetricsSummary,
     correlation_matrix,
     daily_returns,
+    expected_shortfall,
+    historical_var,
     portfolio_returns,
     summarize,
 )
@@ -61,6 +63,8 @@ class PortfolioMetrics(BaseModel):
     annualized_volatility_pct: float
     sharpe_ratio: float
     max_drawdown_pct: float
+    var_95_pct: float
+    expected_shortfall_95_pct: float
     correlations: dict[str, dict[str, float]]
 
 
@@ -132,5 +136,7 @@ def get_portfolio_metrics(
         annualized_volatility_pct=round(ann_vol(returns) * 100, 2),
         sharpe_ratio=round(sharpe(returns, request.risk_free_rate), 3),
         max_drawdown_pct=round(mdd(portfolio_prices) * 100, 2),
+        var_95_pct=round(historical_var(returns) * 100, 2),
+        expected_shortfall_95_pct=round(expected_shortfall(returns) * 100, 2),
         correlations={c: {i: round(float(v), 3) for i, v in corr[c].items()} for c in corr.columns},
     )

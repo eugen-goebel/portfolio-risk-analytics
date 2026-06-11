@@ -98,6 +98,8 @@ CI builds the stack on every change, seeds demo data through the API container a
 | Annualized volatility | Sample standard deviation of daily returns, scaled by the square root of 252 |
 | Sharpe ratio | Annualized excess return over the risk free rate, divided by annualized volatility |
 | Max drawdown | Largest peak-to-trough decline of the price series |
+| VaR 95% | Empirical 5% quantile of daily returns, sign-flipped: the loss that only the worst 5% of days exceeded |
+| Expected shortfall 95% | Mean daily loss on the days at or beyond the VaR threshold |
 | Correlations | Pairwise correlation of daily returns between portfolio assets |
 
 The metric functions are tested against hand-computed values, not against their own output.
@@ -137,7 +139,7 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 52 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 57 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
