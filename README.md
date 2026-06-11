@@ -101,8 +101,12 @@ CI builds the stack on every change, seeds demo data through the API container a
 | VaR 95% | Empirical 5% quantile of daily returns, sign-flipped: the loss that only the worst 5% of days exceeded |
 | Expected shortfall 95% | Mean daily loss on the days at or beyond the VaR threshold |
 | Correlations | Pairwise correlation of daily returns between portfolio assets |
+| Beta | Covariance of asset and benchmark daily returns, divided by the benchmark variance |
+| Alpha | Annualized CAPM alpha: the return left after subtracting what beta exposure to the benchmark explains |
+| Tracking error | Annualized standard deviation of the daily active returns, asset minus benchmark |
+| Information ratio | Annualized mean active return divided by the tracking error |
 
-The metric functions are tested against hand-computed values, not against their own output.
+The benchmark-relative metrics are served at `GET /assets/{symbol}/benchmark` and through `uv run main.py benchmark AAPL --benchmark SPY`. The metric functions are tested against hand-computed values, not against their own output.
 
 ## Volatility forecasting
 
@@ -147,7 +151,7 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 72 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 80 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
