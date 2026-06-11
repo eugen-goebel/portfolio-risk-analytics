@@ -50,6 +50,8 @@ class TestMetrics:
         assert body["symbol"] == "demo-a"
         assert body["observations"] > 0
         assert body["max_drawdown_pct"] <= 0
+        assert body["var_95_pct"] >= 0
+        assert body["expected_shortfall_95_pct"] >= body["var_95_pct"]
 
     def test_portfolio_metrics(self, client):
         body = client.post(
@@ -57,6 +59,8 @@ class TestMetrics:
             json={"weights": {"demo-a": 0.6, "demo-b": 0.4}},
         ).json()
         assert body["annualized_volatility_pct"] > 0
+        assert body["var_95_pct"] >= 0
+        assert body["expected_shortfall_95_pct"] >= body["var_95_pct"]
         assert body["correlations"]["demo-a"]["demo-a"] == pytest.approx(1.0)
 
     def test_forecast(self, client):

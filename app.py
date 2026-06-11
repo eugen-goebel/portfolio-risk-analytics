@@ -15,6 +15,8 @@ from analytics.metrics import (
     annualized_volatility,
     correlation_matrix,
     drawdown_series,
+    expected_shortfall,
+    historical_var,
     max_drawdown,
     portfolio_returns,
     sharpe_ratio,
@@ -73,6 +75,10 @@ with tab_asset:
     m3.metric("Sharpe ratio", f"{metrics.sharpe_ratio:.2f}")
     m4.metric("Max drawdown", f"{metrics.max_drawdown_pct:.1f}%")
 
+    m5, m6, _, _ = st.columns(4)
+    m5.metric("VaR 95% (daily)", f"{metrics.var_95_pct:.1f}%")
+    m6.metric("Expected shortfall 95%", f"{metrics.expected_shortfall_95_pct:.1f}%")
+
     fig_price = px.line(prices, title=f"{symbol} closing prices")
     fig_price.update_layout(showlegend=False, yaxis_title="Price", xaxis_title="")
     st.plotly_chart(fig_price, use_container_width=True)
@@ -107,10 +113,12 @@ with tab_portfolio:
     returns = portfolio_returns(frame, weights)
     portfolio_value = (1 + returns).cumprod() * 100
 
-    p1, p2, p3 = st.columns(3)
+    p1, p2, p3, p4, p5 = st.columns(5)
     p1.metric("Volatility (ann.)", f"{annualized_volatility(returns) * 100:.1f}%")
     p2.metric("Sharpe ratio", f"{sharpe_ratio(returns, 0.03):.2f}")
     p3.metric("Max drawdown", f"{max_drawdown(portfolio_value) * 100:.1f}%")
+    p4.metric("VaR 95% (daily)", f"{historical_var(returns) * 100:.1f}%")
+    p5.metric("Expected shortfall 95%", f"{expected_shortfall(returns) * 100:.1f}%")
 
     fig_value = px.line(portfolio_value, title="Portfolio value (start = 100)")
     fig_value.update_layout(showlegend=False, yaxis_title="Value", xaxis_title="")

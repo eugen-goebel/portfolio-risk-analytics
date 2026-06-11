@@ -10,6 +10,8 @@ from analytics.metrics import (
     correlation_matrix,
     daily_returns,
     drawdown_series,
+    expected_shortfall,
+    historical_var,
     max_drawdown,
     portfolio_returns,
     sharpe_ratio,
@@ -111,3 +113,39 @@ class TestSummarize:
         assert s.observations == 4
         assert s.total_return_pct == pytest.approx(0.0)
         assert s.max_drawdown_pct == pytest.approx(-25.0)
+        # returns are 0.2, -0.25 and 1/9. The 5% quantile interpolates a
+        # tenth of the way from -0.25 toward 1/9: -0.25 + 0.1 * (1/9 + 0.25)
+        assert s.var_95_pct == pytest.approx(21.39)
+        # only -0.25 lies at or below that quantile
+        assert s.expected_shortfall_95_pct == pytest.approx(25.0)
+
+
+class TestTailRisk:
+    # 20 returns whose two smallest values are -0.05 and -0.03. With linear
+    # interpolation the 5% quantile sits at sorted position 0.05 * 19 = 0.95,
+    # between those two: -0.05 + 0.95 * 0.02 = -0.031.
+    TAIL_RETURNS = [
+        0.010, -0.050, 0.002, 0.015, -0.010, 0.007, 0.020, -0.030, 0.005, 0.012,
+        0.003, -0.008, 0.018, 0.001, 0.009, -0.004, 0.011, 0.006, 0.013, 0.004,
+    ]  # fmt: skip
+
+    def test_var_hand_computed(self):
+        assert historical_var(pd.Series(self.TAIL_RETURNS)) == pytest.approx(0.031)
+
+    def test_expected_shortfall_hand_computed(self):
+        # only -0.05 lies at or below the -0.031 quantile
+        assert expected_shortfall(pd.Series(self.TAIL_RETURNS)) == pytest.approx(0.05)
+
+    def test_shortfall_never_below_var(self):
+        r = pd.Series(self.TAIL_RETURNS)
+        assert expected_shortfall(r) >= historical_var(r)
+
+    def test_all_positive_returns_floor_at_zero(self):
+        # a strictly positive quantile flips to a negative loss, floored to 0.0
+        r = pd.Series([0.010, 0.020, 0.015, 0.005, 0.012])
+        assert historical_var(r) == 0.0
+        assert expected_shortfall(r) == 0.0
+
+    def test_single_observation_is_zero(self):
+        assert historical_var(pd.Series([-0.02])) == 0.0
+        assert expected_shortfall(pd.Series([-0.02])) == 0.0
