@@ -108,6 +108,14 @@ CI builds the stack on every change, seeds demo data through the API container a
 
 The benchmark-relative metrics are served at `GET /assets/{symbol}/benchmark` and through `uv run main.py benchmark AAPL --benchmark SPY`. The metric functions are tested against hand-computed values, not against their own output.
 
+## VaR validation
+
+The Kupiec proportion-of-failures test checks whether the VaR model breaches as often as its confidence level promises, at 95% roughly one day in twenty should lose more than the VaR. The backtest walks forward over the stored history, estimates the VaR at each day from the trailing window only, and compares the observed breach count against the promised rate with a likelihood ratio test. A p-value below 0.05 rejects the VaR model, whether it breached too often or suspiciously rarely, also served at `GET /assets/{symbol}/var-validation`.
+
+```bash
+uv run main.py var-test SPY --window 250 --confidence 0.95
+```
+
 ## Backtesting
 
 The backtest simulates the same target weights twice over the stored history: once bought and held, where the weights drift with performance, and once rebalanced back to target on the first trading day of each month or quarter. Both value paths are summarized with the usual risk metrics, so the comparison shows directly what rebalancing discipline costs or earns against buy and hold.
@@ -182,7 +190,7 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 93 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 116 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 

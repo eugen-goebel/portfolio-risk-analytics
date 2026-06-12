@@ -31,6 +31,7 @@ from analytics.metrics import annualized_volatility as ann_vol
 from analytics.metrics import max_drawdown as mdd
 from analytics.metrics import sharpe_ratio as sharpe
 from analytics.optimize import OptimizationReport, optimize_portfolio
+from analytics.var_validation import VarValidationReport, validate_var
 from db.database import get_db, init_db
 from db.models import Asset, DailyPrice
 
@@ -131,6 +132,20 @@ def get_forecast(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
         return evaluate_models(symbol, daily_returns(series), test_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/assets/{symbol}/var-validation", response_model=VarValidationReport, tags=["Metrics"])
+def get_var_validation(
+    symbol: str, window: int = 250, confidence: float = 0.95, db: Session = Depends(get_db)
+) -> VarValidationReport:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        return validate_var(symbol, daily_returns(series), window, confidence)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

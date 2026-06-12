@@ -7,6 +7,7 @@ Examples:
     uv run main.py metrics SPY
     uv run main.py benchmark AAPL --benchmark SPY
     uv run main.py drift SPY
+    uv run main.py var-test SPY --window 250 --confidence 0.95
 """
 
 import argparse
@@ -172,6 +173,36 @@ def cmd_drift(symbol: str, reference_size: int, recent_size: int) -> int:
     return 0
 
 
+def cmd_var_test(symbol: str, window: int, confidence: float) -> int:
+    from analytics.loader import load_close_series
+    from analytics.metrics import daily_returns
+    from analytics.var_validation import validate_var
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+            report = validate_var(symbol, daily_returns(series), window, confidence)
+        except (LookupError, ValueError) as exc:
+            print(exc)
+            return 1
+    finally:
+        db.close()
+
+    print(f"Symbol:            {report.symbol}")
+    print(f"Confidence:        {report.confidence * 100:.0f}%")
+    print(f"Window:            {report.window} observations")
+    print(f"Out-of-sample:     {report.observations} observations")
+    print(f"Expected breaches: {report.expected_breaches:.1f}")
+    print(f"Actual breaches:   {report.actual_breaches}")
+    print(f"Breach rate:       {report.breach_rate_pct:.2f}%")
+    print(f"Kupiec LR:         {report.kupiec_statistic:.4f}")
+    print(f"p-value:           {report.p_value:.4f}")
+    print(f"VaR model rejected at the 5% level: {'yes' if report.model_rejected else 'no'}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Portfolio risk analytics")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -201,6 +232,11 @@ def main() -> int:
     p_drift.add_argument("--reference-size", type=int, default=500)
     p_drift.add_argument("--recent-size", type=int, default=60)
 
+    p_var = sub.add_parser("var-test", help="Backtest the VaR model with the Kupiec test")
+    p_var.add_argument("symbol")
+    p_var.add_argument("--window", type=int, default=250)
+    p_var.add_argument("--confidence", type=float, default=0.95)
+
     args = parser.parse_args()
     if args.command == "ingest":
         return cmd_ingest(args.symbols, args.demo)
@@ -212,6 +248,8 @@ def main() -> int:
         return cmd_benchmark(args.symbol, args.benchmark, args.risk_free_rate)
     if args.command == "forecast":
         return cmd_forecast(args.symbol, args.test_size)
+    if args.command == "var-test":
+        return cmd_var_test(args.symbol, args.window, args.confidence)
     return cmd_drift(args.symbol, args.reference_size, args.recent_size)
 
 

@@ -84,6 +84,19 @@ class TestMetrics:
     def test_drift_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/drift").status_code == 404
 
+    def test_var_validation(self, client):
+        body = client.get("/assets/demo-a/var-validation?window=100").json()
+        assert body["symbol"] == "demo-a"
+        assert body["window"] == 100
+        assert body["confidence"] == 0.95
+        assert body["observations"] > 0
+        assert body["expected_breaches"] == pytest.approx(0.05 * body["observations"], abs=0.1)
+        assert 0 <= body["p_value"] <= 1
+        assert isinstance(body["model_rejected"], bool)
+
+    def test_var_validation_unknown_symbol_is_404(self, client):
+        assert client.get("/assets/nope/var-validation").status_code == 404
+
     def test_benchmark(self, client):
         body = client.get("/assets/demo-a/benchmark?benchmark=demo-b").json()
         assert body["symbol"] == "demo-a"
