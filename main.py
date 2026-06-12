@@ -8,6 +8,7 @@ Examples:
     uv run main.py benchmark AAPL --benchmark SPY
     uv run main.py drift SPY
     uv run main.py var-test SPY --window 250 --confidence 0.95
+    uv run main.py report SPY --output spy-factsheet.pdf
 """
 
 import argparse
@@ -203,6 +204,28 @@ def cmd_var_test(symbol: str, window: int, confidence: float) -> int:
     return 0
 
 
+def cmd_report(symbol: str, output: str | None, risk_free_rate: float) -> int:
+    from analytics.loader import load_close_series
+    from reporting.factsheet import generate_factsheet
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+        except LookupError as exc:
+            print(exc)
+            return 1
+        path = generate_factsheet(
+            symbol, series, output or f"{symbol}-factsheet.pdf", risk_free_rate
+        )
+    finally:
+        db.close()
+
+    print(f"Factsheet written to {path}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Portfolio risk analytics")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -236,6 +259,12 @@ def main() -> int:
     p_var.add_argument("symbol")
     p_var.add_argument("--window", type=int, default=250)
     p_var.add_argument("--confidence", type=float, default=0.95)
+    p_report = sub.add_parser("report", help="Write a one-page PDF factsheet for a stored symbol")
+    p_report.add_argument("symbol")
+    p_report.add_argument(
+        "--output", default=None, help="Output path, default {symbol}-factsheet.pdf"
+    )
+    p_report.add_argument("--risk-free-rate", type=float, default=0.0)
 
     args = parser.parse_args()
     if args.command == "ingest":
@@ -250,6 +279,8 @@ def main() -> int:
         return cmd_forecast(args.symbol, args.test_size)
     if args.command == "var-test":
         return cmd_var_test(args.symbol, args.window, args.confidence)
+    if args.command == "report":
+        return cmd_report(args.symbol, args.output, args.risk_free_rate)
     return cmd_drift(args.symbol, args.reference_size, args.recent_size)
 
 

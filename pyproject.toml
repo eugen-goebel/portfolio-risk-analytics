@@ -5,7 +5,9 @@ description = "Market data platform with a daily ingestion pipeline, PostgreSQL 
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.0",
+    "fpdf2>=2.8.7",
     "httpx>=0.28.0",
+    "matplotlib>=3.11.0",
     "numpy>=2.0.0",
     "pandas>=2.2.0",
     "plotly>=6.8.0",
@@ -35,14 +37,14 @@ select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["E501", "B008"]
 
 [tool.mypy]
-files = ["analytics", "api", "db", "ingestion", "main.py", "app.py"]
+files = ["analytics", "api", "db", "ingestion", "reporting", "main.py", "app.py"]
 python_version = "3.12"
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["pandas.*", "plotly.*"]
+module = ["pandas.*", "plotly.*", "matplotlib.*", "fpdf.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
