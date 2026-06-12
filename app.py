@@ -4,6 +4,7 @@ Run locally with:
     uv run streamlit run app.py
 """
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -14,6 +15,7 @@ from analytics.drift import evaluate_drift
 from analytics.forecast import evaluate_models
 from analytics.loader import load_close_frame, load_close_series
 from analytics.metrics import (
+    TRADING_DAYS,
     annualized_volatility,
     correlation_matrix,
     daily_returns,
@@ -25,6 +27,7 @@ from analytics.metrics import (
     sharpe_ratio,
     summarize,
 )
+from analytics.optimize import OptimizationReport, optimize_portfolio
 from db.database import SessionLocal, init_db
 from db.models import Asset
 
@@ -59,7 +62,9 @@ if not symbols:
         st.rerun()
     st.stop()
 
-tab_asset, tab_portfolio, tab_monitor = st.tabs(["Single Asset", "Portfolio", "Model Monitor"])
+tab_asset, tab_portfolio, tab_optimize, tab_monitor = st.tabs(
+    ["Single Asset", "Portfolio", "Optimization", "Model Monitor"]
+)
 
 
 with tab_asset:
@@ -141,6 +146,97 @@ with tab_portfolio:
                 pd.DataFrame({"weight": pd.Series(weights).round(3)}),
                 use_container_width=False,
             )
+
+
+with tab_optimize:
+    col_assets, col_rf = st.columns([2, 1])
+    opt_chosen = col_assets.multiselect(
+        "Assets", symbols, default=symbols[: min(3, len(symbols))], key="optimize_assets"
+    )
+    opt_risk_free = col_rf.number_input(
+        "Risk free rate (yearly)",
+        min_value=0.0,
+        max_value=0.20,
+        value=0.03,
+        step=0.005,
+        key="optimize_risk_free",
+    )
+
+    if len(opt_chosen) < 2:
+        st.info("Pick at least two assets to optimize a portfolio.")
+    else:
+        opt_frame = load_close_frame(db, opt_chosen)
+        opt_returns = opt_frame.pct_change().dropna()
+        mu = opt_returns.mean().to_numpy() * TRADING_DAYS
+        sigma = opt_returns.cov(ddof=1).to_numpy() * TRADING_DAYS
+
+        rng = np.random.default_rng(42)
+        cloud_weights = rng.dirichlet(np.ones(len(opt_chosen)), size=2000)
+        cloud_return = cloud_weights @ mu
+        cloud_vol = np.sqrt(np.einsum("ij,jk,ik->i", cloud_weights, sigma, cloud_weights))
+        cloud = pd.DataFrame(
+            {
+                "Volatility %": cloud_vol * 100,
+                "Return %": cloud_return * 100,
+                "Sharpe": (cloud_return - opt_risk_free) / cloud_vol,
+            }
+        )
+
+        fig_cloud = px.scatter(
+            cloud,
+            x="Volatility %",
+            y="Return %",
+            color="Sharpe",
+            color_continuous_scale="Viridis",
+            title="Random long-only portfolios and the closed-form optima",
+        )
+
+        report: OptimizationReport | None
+        try:
+            report = optimize_portfolio(opt_frame, opt_risk_free)
+        except ValueError as exc:
+            report = None
+            st.info(str(exc))
+        else:
+            fig_cloud.add_trace(
+                go.Scatter(
+                    x=[report.minimum_variance.volatility_pct],
+                    y=[report.minimum_variance.expected_return_pct],
+                    mode="markers",
+                    name="Minimum variance",
+                    marker={"symbol": "star", "size": 18, "color": "#d62728"},
+                )
+            )
+            fig_cloud.add_trace(
+                go.Scatter(
+                    x=[report.maximum_sharpe.volatility_pct],
+                    y=[report.maximum_sharpe.expected_return_pct],
+                    mode="markers",
+                    name="Maximum Sharpe",
+                    marker={"symbol": "diamond", "size": 14, "color": "#1f77b4"},
+                )
+            )
+            fig_cloud.update_layout(legend={"orientation": "h", "y": -0.2})
+
+        st.plotly_chart(fig_cloud, use_container_width=True)
+
+        if report is not None:
+            col_mv, col_ms = st.columns(2)
+            col_mv.subheader("Minimum variance")
+            col_mv.dataframe(
+                pd.DataFrame({"weight": pd.Series(report.minimum_variance.weights).round(3)}),
+                use_container_width=False,
+            )
+            col_ms.subheader("Maximum Sharpe")
+            col_ms.dataframe(
+                pd.DataFrame({"weight": pd.Series(report.maximum_sharpe.weights).round(3)}),
+                use_container_width=False,
+            )
+
+        st.caption(
+            "The cloud samples long-only portfolios, while the marked closed-form "
+            "solutions allow short positions, which is why they can lie outside the cloud."
+        )
 
 
 with tab_monitor:
