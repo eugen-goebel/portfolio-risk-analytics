@@ -52,7 +52,7 @@ Daily reference rates come from the official ECB data API, also without a key, a
 uv run streamlit run app.py
 ```
 
-The dashboard has three views. Single Asset shows the headline metrics, the price history and the running drawdown for one symbol. Portfolio takes a set of assets with weights, normalizes them, and shows portfolio volatility, Sharpe ratio, max drawdown, the cumulative value curve and a correlation heatmap. Model Monitor compares the three volatility forecasters in a walk-forward test, with next-day volatility per model and an error chart, and checks the recent return distribution for drift against the stored history. With an empty database it offers to load demo data.
+The dashboard has four views. Single Asset shows the headline metrics, the price history and the running drawdown for one symbol. Portfolio takes a set of assets with weights, normalizes them, and shows portfolio volatility, Sharpe ratio, max drawdown, the cumulative value curve and a correlation heatmap. Optimization draws a cloud of random long-only portfolios in risk-return space, colored by Sharpe ratio, and marks the closed-form minimum variance and maximum Sharpe portfolios with their weight tables. Model Monitor compares the three volatility forecasters in a walk-forward test, with next-day volatility per model and an error chart, and checks the recent return distribution for drift against the stored history. With an empty database it offers to load demo data.
 
 ## Factsheets
 
