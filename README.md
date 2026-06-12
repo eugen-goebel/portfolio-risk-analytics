@@ -127,6 +127,14 @@ The Kupiec proportion-of-failures test checks whether the VaR model breaches as 
 uv run main.py var-test SPY --window 250 --confidence 0.95
 ```
 
+## Monte Carlo simulation
+
+The simulate command resamples an asset's own daily return history to generate thousands of possible value paths, each starting at 100, and summarizes where they end: the percentile range of final values, the probability of ending below the start, and the expected final value. The honest caveat is part of the method, resampling history assumes the future resembles the past, so the ranges describe a market like the stored sample and say nothing about events it never contained. A normal method that draws from a fitted normal distribution is available for comparison, and the report is also served at `GET /assets/{symbol}/montecarlo`.
+
+```bash
+uv run main.py simulate SPY --horizon 252 --paths 2000 --method bootstrap --seed 7
+```
+
 ## Backtesting
 
 The backtest simulates the same target weights twice over the stored history: once bought and held, where the weights drift with performance, and once rebalanced back to target on the first trading day of each month or quarter. Both value paths are summarized with the usual risk metrics, so the comparison shows directly what rebalancing discipline costs or earns against buy and hold.
@@ -202,7 +210,7 @@ portfolio-risk-analytics/
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
 ├── reporting/     # One-page PDF factsheets (matplotlib + fpdf2)
-├── tests/         # 142 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 158 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
