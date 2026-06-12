@@ -1,11 +1,13 @@
 """Yahoo chart parsing, demo data, and idempotent storage."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from ingestion.base import ProviderError
 from ingestion.demo import generate_demo_bars
-from ingestion.store import store_bars
-from ingestion.yahoo import parse_chart_json
+from ingestion.store import store_bars, store_intraday_bars
+from ingestion.yahoo import fetch_intraday, parse_chart_json, parse_intraday_json
 
 # 2024-01-02 and 2024-01-03 at 21:00 UTC, like Yahoo timestamps them
 SAMPLE_CHART = {
@@ -84,6 +86,68 @@ class TestParseChartJson:
             parse_chart_json(payload)
 
 
+# 2024-01-02 at 14:30 and 15:30 UTC, hourly bars without adjclose
+SAMPLE_INTRADAY = {
+    "chart": {
+        "result": [
+            {
+                "timestamp": [1704205800, 1704209400],
+                "indicators": {
+                    "quote": [
+                        {
+                            "open": [470.49, 469.20],
+                            "high": [471.00, 470.10],
+                            "low": [469.90, 468.80],
+                            "close": [470.20, 469.55],
+                            "volume": [5200100, 4100300],
+                        }
+                    ]
+                },
+            }
+        ],
+        "error": None,
+    }
+}
+
+
+class TestParseIntradayJson:
+    def test_valid_payload_keeps_utc_timestamps(self):
+        bars = parse_intraday_json(SAMPLE_INTRADAY)
+        assert len(bars) == 2
+        assert bars[0].ts == datetime(2024, 1, 2, 14, 30, tzinfo=UTC)
+        assert bars[1].ts == datetime(2024, 1, 2, 15, 30, tzinfo=UTC)
+        assert bars[0].close == pytest.approx(470.20)
+        assert bars[1].volume == pytest.approx(4100300)
+
+    def test_null_rows_are_skipped(self):
+        payload = {
+            "chart": {
+                "result": [
+                    {
+                        "timestamp": [1704205800, 1704209400],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": [470.49, None],
+                                    "high": [471.00, None],
+                                    "low": [469.90, None],
+                                    "close": [470.20, None],
+                                    "volume": [5200100, None],
+                                }
+                            ]
+                        },
+                    }
+                ],
+                "error": None,
+            }
+        }
+        assert len(parse_intraday_json(payload)) == 1
+
+    def test_invalid_interval_raises(self):
+        with pytest.raises(ProviderError, match="interval"):
+            fetch_intraday("SPY", interval="1d")
+
+
 class TestDemoData:
     def test_deterministic_per_symbol(self):
         a = generate_demo_bars("demo-a", days=100)
@@ -112,3 +176,10 @@ class TestStore:
         store_bars(db, "demo-a", bars[:10])
         added = store_bars(db, "demo-a", bars)
         assert added == len(bars) - 10
+
+    def test_intraday_insert_and_idempotent_rerun(self, db):
+        bars = parse_intraday_json(SAMPLE_INTRADAY)
+        first = store_intraday_bars(db, "demo-a", bars)
+        assert first == len(bars)
+        second = store_intraday_bars(db, "demo-a", bars)
+        assert second == 0

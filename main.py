@@ -3,6 +3,7 @@
 Examples:
     uv run main.py ingest SPY AAPL
     uv run main.py ingest --demo demo-a demo-b
+    uv run main.py ingest-intraday SPY --interval 1h
     uv run main.py ingest-fx USD GBP
     uv run main.py metrics SPY
     uv run main.py benchmark AAPL --benchmark SPY
@@ -36,6 +37,27 @@ def cmd_ingest(symbols: list[str], demo: bool) -> int:
                     print(f"{symbol}: {exc}")
                     return 1
             inserted = store_bars(db, symbol, bars)
+            print(f"{symbol}: {inserted} new rows ({len(bars)} fetched)")
+    finally:
+        db.close()
+    return 0
+
+
+def cmd_ingest_intraday(symbols: list[str], interval: str) -> int:
+    from ingestion.base import ProviderError
+    from ingestion.store import store_intraday_bars
+    from ingestion.yahoo import fetch_intraday
+
+    init_db()
+    db = SessionLocal()
+    try:
+        for symbol in symbols:
+            try:
+                bars = fetch_intraday(symbol, interval)
+            except ProviderError as exc:
+                print(f"{symbol}: {exc}")
+                return 1
+            inserted = store_intraday_bars(db, symbol, bars)
             print(f"{symbol}: {inserted} new rows ({len(bars)} fetched)")
     finally:
         db.close()
@@ -234,6 +256,12 @@ def main() -> int:
     p_ingest.add_argument("symbols", nargs="+", help="Symbols, e.g. SPY AAPL")
     p_ingest.add_argument("--demo", action="store_true", help="Generate offline demo data")
 
+    p_intraday = sub.add_parser("ingest-intraday", help="Download and store intraday prices")
+    p_intraday.add_argument("symbols", nargs="+", help="Symbols, e.g. SPY AAPL")
+    p_intraday.add_argument(
+        "--interval", default="1h", choices=["15m", "30m", "1h"], help="Bar size, default 1h"
+    )
+
     p_fx = sub.add_parser("ingest-fx", help="Download and store ECB reference exchange rates")
     p_fx.add_argument("currencies", nargs="+", help="Currency codes, e.g. USD GBP")
 
@@ -269,6 +297,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "ingest":
         return cmd_ingest(args.symbols, args.demo)
+    if args.command == "ingest-intraday":
+        return cmd_ingest_intraday(args.symbols, args.interval)
     if args.command == "ingest-fx":
         return cmd_ingest_fx(args.currencies)
     if args.command == "metrics":

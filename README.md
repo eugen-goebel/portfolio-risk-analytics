@@ -34,6 +34,8 @@ Sharpe ratio:          0.624
 Max drawdown:          -24.50%
 ```
 
+Hourly intraday prices are loaded with `uv run main.py ingest-intraday SPY --interval 1h` and feed the daily realized volatility served at `GET /assets/{symbol}/realized-volatility`.
+
 Without network access, `uv run main.py ingest --demo demo-a demo-b` generates deterministic demo data.
 
 ### Exchange rates
@@ -71,6 +73,7 @@ uv run uvicorn api.main:app --reload
 | `GET /assets` | Stored assets with their price counts |
 | `GET /assets/{symbol}/prices` | Daily closing prices |
 | `GET /assets/{symbol}/metrics` | Risk metrics for one asset |
+| `GET /assets/{symbol}/realized-volatility` | Daily realized volatility from stored intraday prices |
 | `POST /portfolio/metrics` | Metrics for a weighted portfolio, including the correlation matrix |
 
 Portfolio request body:
@@ -195,11 +198,11 @@ uv run main.py drift SPY
 ```
 portfolio-risk-analytics/
 ├── ingestion/     # Yahoo Finance and ECB clients, demo data generator, idempotent storage
-├── db/            # SQLAlchemy models (assets, daily prices)
+├── db/            # SQLAlchemy models (assets, daily and intraday prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
 ├── reporting/     # One-page PDF factsheets (matplotlib + fpdf2)
-├── tests/         # 130 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 142 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 

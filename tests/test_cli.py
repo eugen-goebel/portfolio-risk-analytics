@@ -15,6 +15,7 @@ MAIN = str(Path(__file__).resolve().parent.parent / "main.py")
 
 SUBCOMMANDS = [
     "ingest",
+    "ingest-intraday",
     "ingest-fx",
     "metrics",
     "benchmark",

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from analytics.backtest import BacktestReport, run_backtest
 from analytics.drift import DriftReport, evaluate_drift
 from analytics.forecast import ForecastReport, evaluate_models
-from analytics.loader import load_close_frame, load_close_series
+from analytics.loader import load_close_frame, load_close_series, load_intraday_closes
 from analytics.metrics import (
     BenchmarkReport,
     MetricsSummary,
@@ -31,6 +31,7 @@ from analytics.metrics import annualized_volatility as ann_vol
 from analytics.metrics import max_drawdown as mdd
 from analytics.metrics import sharpe_ratio as sharpe
 from analytics.optimize import OptimizationReport, optimize_portfolio
+from analytics.realized import annualized_realized_volatility_pct
 from analytics.var_validation import VarValidationReport, validate_var
 from db.database import get_db, init_db
 from db.models import Asset, DailyPrice
@@ -58,6 +59,11 @@ class AssetOut(BaseModel):
 class PricePoint(BaseModel):
     day: str
     close: float
+
+
+class RealizedVolPoint(BaseModel):
+    day: str
+    realized_vol_pct: float
 
 
 class PortfolioRequest(BaseModel):
@@ -109,6 +115,23 @@ def get_prices(symbol: str, limit: int = 250, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     tail = series.tail(limit)
     return [PricePoint(day=str(d.date()), close=float(v)) for d, v in tail.items()]
+
+
+@app.get(
+    "/assets/{symbol}/realized-volatility",
+    response_model=list[RealizedVolPoint],
+    tags=["Metrics"],
+)
+def get_realized_volatility(symbol: str, db: Session = Depends(get_db)) -> list[RealizedVolPoint]:
+    try:
+        closes = load_intraday_closes(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    series = annualized_realized_volatility_pct(closes)
+    return [
+        RealizedVolPoint(day=str(d.date()), realized_vol_pct=round(float(v), 2))
+        for d, v in series.items()
+    ]
 
 
 @app.get("/assets/{symbol}/metrics", response_model=MetricsSummary, tags=["Metrics"])
