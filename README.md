@@ -52,6 +52,14 @@ uv run streamlit run app.py
 
 The dashboard has three views. Single Asset shows the headline metrics, the price history and the running drawdown for one symbol. Portfolio takes a set of assets with weights, normalizes them, and shows portfolio volatility, Sharpe ratio, max drawdown, the cumulative value curve and a correlation heatmap. Model Monitor compares the three volatility forecasters in a walk-forward test, with next-day volatility per model and an error chart, and checks the recent return distribution for drift against the stored history. With an empty database it offers to load demo data.
 
+## Factsheets
+
+The report command turns a stored symbol into a one-page PDF factsheet: the headline risk metrics as a table, plus the price history and the running drawdown as charts. The default output path is `{symbol}-factsheet.pdf`.
+
+```bash
+uv run main.py report SPY --output spy-factsheet.pdf --risk-free-rate 0.03
+```
+
 ## REST API
 
 ```bash
@@ -190,7 +198,8 @@ portfolio-risk-analytics/
 ├── db/            # SQLAlchemy models (assets, daily prices)
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
-├── tests/         # 116 tests, run on SQLite and PostgreSQL in CI
+├── reporting/     # One-page PDF factsheets (matplotlib + fpdf2)
+├── tests/         # 130 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
