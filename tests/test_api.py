@@ -1,12 +1,19 @@
 """API endpoints against an in-memory database with demo data."""
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
 from db.database import get_db
+from ingestion.base import IntradayBar
 from ingestion.demo import generate_demo_bars
-from ingestion.store import store_bars
+from ingestion.store import store_bars, store_intraday_bars
+
+
+def intraday_bar(ts: datetime, close: float) -> IntradayBar:
+    return IntradayBar(ts=ts, open=close, high=close, low=close, close=close, volume=0.0)
 
 
 @pytest.fixture()
@@ -42,6 +49,24 @@ class TestAssets:
 
     def test_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/prices").status_code == 404
+
+    def test_realized_volatility(self, client, db):
+        # closes 100 -> 101 -> 99.99 give RV sqrt(0.0002) = 0.0141421,
+        # annualized: 0.0141421 * sqrt(252) * 100 = 22.4497, rounded 22.45
+        store_intraday_bars(
+            db,
+            "demo-a",
+            [
+                intraday_bar(datetime(2024, 1, 2, 10, tzinfo=UTC), 100.0),
+                intraday_bar(datetime(2024, 1, 2, 11, tzinfo=UTC), 101.0),
+                intraday_bar(datetime(2024, 1, 2, 12, tzinfo=UTC), 99.99),
+            ],
+        )
+        body = client.get("/assets/demo-a/realized-volatility").json()
+        assert body == [{"day": "2024-01-02", "realized_vol_pct": 22.45}]
+
+    def test_realized_volatility_without_intraday_data_is_404(self, client):
+        assert client.get("/assets/demo-a/realized-volatility").status_code == 404
 
 
 class TestMetrics:
