@@ -114,6 +114,21 @@ class TestMetrics:
         resp = client.post("/portfolio/backtest", json={"weights": {"demo-a": 0.5}})
         assert resp.status_code == 400
 
+    def test_portfolio_optimize(self, client):
+        body = client.post(
+            "/portfolio/optimize",
+            json={"symbols": ["demo-a", "demo-b"]},
+        ).json()
+        assert body["symbols"] == ["demo-a", "demo-b"]
+        assert body["observations"] > 0
+        for key in ("minimum_variance", "maximum_sharpe"):
+            assert sum(body[key]["weights"].values()) == pytest.approx(1.0, abs=1e-3)
+            assert body[key]["volatility_pct"] > 0
+
+    def test_optimize_single_symbol_is_400(self, client):
+        resp = client.post("/portfolio/optimize", json={"symbols": ["demo-a"]})
+        assert resp.status_code == 400
+
     def test_bad_weights_are_400(self, client):
         resp = client.post("/portfolio/metrics", json={"weights": {"demo-a": 0.5}})
         assert resp.status_code == 400

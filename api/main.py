@@ -30,6 +30,7 @@ from analytics.metrics import (
 from analytics.metrics import annualized_volatility as ann_vol
 from analytics.metrics import max_drawdown as mdd
 from analytics.metrics import sharpe_ratio as sharpe
+from analytics.optimize import OptimizationReport, optimize_portfolio
 from db.database import get_db, init_db
 from db.models import Asset, DailyPrice
 
@@ -66,6 +67,11 @@ class PortfolioRequest(BaseModel):
 class BacktestRequest(BaseModel):
     weights: dict[str, float] = Field(description="Symbol to weight, weights sum to 1")
     rebalance: str = "monthly"
+    risk_free_rate: float = 0.0
+
+
+class OptimizeRequest(BaseModel):
+    symbols: list[str] = Field(description="Symbols to include in the optimization")
     risk_free_rate: float = 0.0
 
 
@@ -195,5 +201,16 @@ def run_portfolio_backtest(
     try:
         frame = load_close_frame(db, symbols)
         return run_backtest(frame, request.weights, request.rebalance, request.risk_free_rate)
+    except (LookupError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/portfolio/optimize", response_model=OptimizationReport, tags=["Metrics"])
+def run_portfolio_optimization(
+    request: OptimizeRequest, db: Session = Depends(get_db)
+) -> OptimizationReport:
+    try:
+        frame = load_close_frame(db, request.symbols)
+        return optimize_portfolio(frame, request.risk_free_rate)
     except (LookupError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
