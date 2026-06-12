@@ -124,6 +124,21 @@ POST /portfolio/backtest
 }
 ```
 
+## Portfolio optimization
+
+Closed-form Markowitz mean-variance optimization on the stored history: the global minimum variance portfolio and the maximum Sharpe (tangency) portfolio, computed directly from the annualized sample moments with plain linear algebra and no numerical optimizer. The solutions are the textbook unconstrained ones, so negative weights, meaning short positions, are allowed.
+
+```
+POST /portfolio/optimize
+```
+
+```json
+{
+  "symbols": ["SPY", "AAPL", "MSFT"],
+  "risk_free_rate": 0.03
+}
+```
+
 ## Volatility forecasting
 
 Daily returns are close to unpredictable, their volatility is not: turbulent days cluster. The forecast module compares three one-day-ahead volatility forecasters in a walk-forward test where no model ever sees the future.
