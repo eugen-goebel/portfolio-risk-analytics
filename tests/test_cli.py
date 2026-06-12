@@ -22,6 +22,7 @@ SUBCOMMANDS = [
     "forecast",
     "drift",
     "var-test",
+    "simulate",
     "report",
 ]
 

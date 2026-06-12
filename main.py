@@ -9,6 +9,7 @@ Examples:
     uv run main.py benchmark AAPL --benchmark SPY
     uv run main.py drift SPY
     uv run main.py var-test SPY --window 250 --confidence 0.95
+    uv run main.py simulate SPY --horizon 252 --paths 2000 --method bootstrap --seed 7
     uv run main.py report SPY --output spy-factsheet.pdf
 """
 
@@ -226,6 +227,36 @@ def cmd_var_test(symbol: str, window: int, confidence: float) -> int:
     return 0
 
 
+def cmd_simulate(symbol: str, horizon: int, paths: int, method: str, seed: int | None) -> int:
+    from analytics.loader import load_close_series
+    from analytics.metrics import daily_returns
+    from analytics.montecarlo import run_monte_carlo
+
+    init_db()
+    db = SessionLocal()
+    try:
+        try:
+            series = load_close_series(db, symbol)
+            report = run_monte_carlo(symbol, daily_returns(series), horizon, paths, method, seed)
+        except (LookupError, ValueError) as exc:
+            print(exc)
+            return 1
+    finally:
+        db.close()
+
+    print(f"Symbol:               {report.symbol}")
+    print(f"Method:               {report.method}")
+    print(f"Horizon:              {report.horizon_days} trading days")
+    print(f"Paths:                {report.n_paths}")
+    print(f"Start value:          {report.start_value:.2f}")
+    for name in ("p5", "p25", "p50", "p75", "p95"):
+        label = f"Final value {name}:"
+        print(f"{label:<22}{report.percentiles[name]:.2f}")
+    print(f"Probability of loss:  {report.prob_loss * 100:.2f}%")
+    print(f"Expected final value: {report.expected_final:.2f}")
+    return 0
+
+
 def cmd_report(symbol: str, output: str | None, risk_free_rate: float) -> int:
     from analytics.loader import load_close_series
     from reporting.factsheet import generate_factsheet
@@ -287,6 +318,14 @@ def main() -> int:
     p_var.add_argument("symbol")
     p_var.add_argument("--window", type=int, default=250)
     p_var.add_argument("--confidence", type=float, default=0.95)
+
+    p_simulate = sub.add_parser("simulate", help="Monte Carlo simulation of future value paths")
+    p_simulate.add_argument("symbol")
+    p_simulate.add_argument("--horizon", type=int, default=252)
+    p_simulate.add_argument("--paths", type=int, default=2000)
+    p_simulate.add_argument("--method", choices=["bootstrap", "normal"], default="bootstrap")
+    p_simulate.add_argument("--seed", type=int, default=None)
+
     p_report = sub.add_parser("report", help="Write a one-page PDF factsheet for a stored symbol")
     p_report.add_argument("symbol")
     p_report.add_argument(
@@ -309,6 +348,8 @@ def main() -> int:
         return cmd_forecast(args.symbol, args.test_size)
     if args.command == "var-test":
         return cmd_var_test(args.symbol, args.window, args.confidence)
+    if args.command == "simulate":
+        return cmd_simulate(args.symbol, args.horizon, args.paths, args.method, args.seed)
     if args.command == "report":
         return cmd_report(args.symbol, args.output, args.risk_free_rate)
     return cmd_drift(args.symbol, args.reference_size, args.recent_size)

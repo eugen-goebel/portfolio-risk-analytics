@@ -30,6 +30,7 @@ from analytics.metrics import (
 from analytics.metrics import annualized_volatility as ann_vol
 from analytics.metrics import max_drawdown as mdd
 from analytics.metrics import sharpe_ratio as sharpe
+from analytics.montecarlo import MonteCarloReport, run_monte_carlo
 from analytics.optimize import OptimizationReport, optimize_portfolio
 from analytics.realized import annualized_realized_volatility_pct
 from analytics.var_validation import VarValidationReport, validate_var
@@ -155,6 +156,25 @@ def get_forecast(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
         return evaluate_models(symbol, daily_returns(series), test_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/assets/{symbol}/montecarlo", response_model=MonteCarloReport, tags=["Metrics"])
+def get_monte_carlo(
+    symbol: str,
+    horizon: int = 252,
+    n_paths: int = 2000,
+    method: str = "bootstrap",
+    seed: int | None = None,
+    db: Session = Depends(get_db),
+) -> MonteCarloReport:
+    try:
+        series = load_close_series(db, symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        return run_monte_carlo(symbol, daily_returns(series), horizon, n_paths, method, seed)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

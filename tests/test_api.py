@@ -109,6 +109,21 @@ class TestMetrics:
     def test_drift_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/drift").status_code == 404
 
+    def test_montecarlo(self, client):
+        body = client.get("/assets/demo-a/montecarlo?horizon=60&n_paths=300&seed=7").json()
+        assert body["symbol"] == "demo-a"
+        assert body["method"] == "bootstrap"
+        assert body["horizon_days"] == 60
+        assert body["n_paths"] == 300
+        assert body["start_value"] == 100.0
+        p = body["percentiles"]
+        assert p["p5"] <= p["p25"] <= p["p50"] <= p["p75"] <= p["p95"]
+        assert 0.0 <= body["prob_loss"] <= 1.0
+        assert body["expected_final"] > 0
+
+    def test_montecarlo_unknown_symbol_is_404(self, client):
+        assert client.get("/assets/nope/montecarlo").status_code == 404
+
     def test_var_validation(self, client):
         body = client.get("/assets/demo-a/var-validation?window=100").json()
         assert body["symbol"] == "demo-a"
