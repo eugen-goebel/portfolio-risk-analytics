@@ -23,7 +23,7 @@ dev = [
     "mypy>=2.0",
     "pytest>=9.1.0",
     "pytest-cov>=7.0",
-    "ruff>=0.15.17",
+    "ruff>=0.15.19",
 ]
 
 [tool.ruff]
