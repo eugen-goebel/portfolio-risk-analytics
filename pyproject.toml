@@ -4,7 +4,7 @@ version = "1.4.0"
 description = "Market data platform with a daily ingestion pipeline, PostgreSQL storage and portfolio risk analytics"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.138.0",
+    "fastapi>=0.138.2",
     "fpdf2>=2.8.7",
     "httpx>=0.28.0",
     "matplotlib>=3.11.0",
