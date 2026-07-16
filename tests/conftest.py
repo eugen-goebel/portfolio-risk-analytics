@@ -6,6 +6,7 @@ suite runs against that server instead, with a clean schema per test.
 """
 
 import os
+import tempfile
 from collections.abc import Iterator
 
 import pytest
@@ -13,8 +14,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from db import models  # noqa: F401  (registers the tables on Base)
-from db.database import Base
+# db.database reads DATABASE_URL when it is imported, and the dashboard test
+# drives app.py against that engine. Point it at a throwaway file before the
+# import below, so a test run never creates or touches the repo's market.db.
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp()}/market.db")
+
+from db import models  # noqa: E402,F401  (registers the tables on Base)
+from db.database import Base  # noqa: E402
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 
