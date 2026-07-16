@@ -1,13 +1,21 @@
 """Yahoo chart parsing, demo data, and idempotent storage."""
 
+import itertools
+import math
 from datetime import UTC, datetime
 
+import pandas as pd
 import pytest
 
 from ingestion.base import ProviderError
-from ingestion.demo import generate_demo_bars
+from ingestion.demo import PROFILES, TRADING_DAYS, generate_demo_bars
 from ingestion.store import store_bars, store_intraday_bars
 from ingestion.yahoo import fetch_intraday, parse_chart_json, parse_intraday_json
+
+
+def _close_series(symbol: str, days: int = 750) -> pd.Series:
+    """Closing prices the way the dashboard loads them, indexed by day."""
+    return pd.Series({bar.day: bar.close for bar in generate_demo_bars(symbol, days=days)})
 
 # 2024-01-02 and 2024-01-03 at 21:00 UTC, like Yahoo timestamps them
 SAMPLE_CHART = {
@@ -161,6 +169,35 @@ class TestDemoData:
 
     def test_no_weekend_bars(self):
         assert all(bar.day.weekday() < 5 for bar in generate_demo_bars("demo-a", days=50))
+
+    @pytest.mark.parametrize("symbol", sorted(PROFILES))
+    def test_named_profiles_hit_their_volatility(self, symbol):
+        # Guards the demo's credibility: bonds used to come out at equity
+        # volatility because every symbol shared one set of parameters.
+        closes = _close_series(symbol)
+        realized = closes.pct_change().dropna().std() * math.sqrt(TRADING_DAYS)
+        assert realized == pytest.approx(PROFILES[symbol].volatility, rel=0.15)
+
+    def test_bonds_are_calmer_than_equity(self):
+        bonds = _close_series("demo-bonds").pct_change().dropna().std()
+        equity = _close_series("demo-equity").pct_change().dropna().std()
+        assert bonds < equity / 2
+
+    def test_correlation_follows_the_product_of_betas(self):
+        # The tolerance carries the sampling error of a correlation over the
+        # ~540 bars the dashboard shows, which is around 0.04 per pair.
+        frame = pd.DataFrame({s: _close_series(s) for s in PROFILES})
+        realized = frame.pct_change().dropna().corr()
+        for a, b in itertools.combinations(PROFILES, 2):
+            expected = PROFILES[a].beta * PROFILES[b].beta
+            assert realized.loc[a, b] == pytest.approx(expected, abs=0.09)
+
+    def test_equity_sharpe_stays_believable(self):
+        # A market seed drawing a two year bull run reads as a broken demo.
+        closes = _close_series("demo-equity")
+        returns = closes.pct_change().dropna()
+        sharpe = (returns.mean() * TRADING_DAYS - 0.03) / (returns.std() * math.sqrt(TRADING_DAYS))
+        assert 0.2 < sharpe < 1.2
 
 
 class TestStore:
