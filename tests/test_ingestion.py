@@ -17,6 +17,7 @@ def _close_series(symbol: str, days: int = 750) -> pd.Series:
     """Closing prices the way the dashboard loads them, indexed by day."""
     return pd.Series({bar.day: bar.close for bar in generate_demo_bars(symbol, days=days)})
 
+
 # 2024-01-02 and 2024-01-03 at 21:00 UTC, like Yahoo timestamps them
 SAMPLE_CHART = {
     "chart": {

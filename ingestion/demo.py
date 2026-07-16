@@ -65,7 +65,9 @@ def generate_demo_bars(symbol: str, days: int = 500, start_price: float = 100.0)
     shock = profile.beta * _market_factor(days) + np.sqrt(1 - profile.beta**2) * rng.normal(
         size=days
     )
-    daily_returns = profile.drift / TRADING_DAYS + profile.volatility / np.sqrt(TRADING_DAYS) * shock
+    daily_returns = (
+        profile.drift / TRADING_DAYS + profile.volatility / np.sqrt(TRADING_DAYS) * shock
+    )
 
     bars: list[PriceBar] = []
     price = start_price
