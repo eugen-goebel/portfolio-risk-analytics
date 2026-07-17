@@ -33,6 +33,8 @@ from db.models import Asset
 
 st.set_page_config(page_title="Portfolio Risk Analytics", page_icon="📊", layout="wide")
 
+DEMO_SYMBOLS = ("demo-equity", "demo-bonds", "demo-gold")
+
 init_db()
 db = SessionLocal()
 
@@ -41,26 +43,40 @@ def stored_symbols() -> list[str]:
     return list(db.scalars(select(Asset.symbol).order_by(Asset.symbol)))
 
 
-def seed_demo_data() -> None:
+@st.cache_resource
+def ensure_demo_data() -> None:
+    """Fill an empty database with the demo series, once per process.
+
+    Streamlit can run two scripts at the same time on a cold start. Without
+    this cache both would see an empty database and both would insert the demo
+    assets, which trips the unique constraint on assets.symbol. cache_resource
+    runs the body a single time, under a lock.
+
+    A database that already holds prices is left untouched, so changing
+    generate_demo_bars only reaches a running deployment after a reboot.
+    """
     from ingestion.demo import generate_demo_bars
     from ingestion.store import store_bars
 
-    for symbol in ("demo-equity", "demo-bonds", "demo-gold"):
+    if db.scalar(select(Asset.id).limit(1)) is not None:
+        return
+    for symbol in DEMO_SYMBOLS:
         store_bars(db, symbol, generate_demo_bars(symbol, days=750))
 
 
 st.title("Portfolio Risk Analytics")
 
+ensure_demo_data()
 symbols = stored_symbols()
 if not symbols:
-    st.info(
-        "No price data stored yet. Load demo data below, or ingest real prices "
-        "with `uv run main.py ingest SPY AAPL MSFT`."
-    )
-    if st.button("Load demo data"):
-        seed_demo_data()
-        st.rerun()
+    st.info("No price data stored yet. Ingest prices with `uv run main.py ingest SPY AAPL MSFT`.")
     st.stop()
+
+if symbols == sorted(DEMO_SYMBOLS):
+    st.caption(
+        "Synthetic demo series, generated deterministically so the dashboard runs offline. "
+        "Ingest real prices with `uv run main.py ingest SPY AAPL MSFT`."
+    )
 
 tab_asset, tab_portfolio, tab_optimize, tab_monitor = st.tabs(
     ["Single Asset", "Portfolio", "Optimization", "Model Monitor"]
@@ -89,14 +105,14 @@ with tab_asset:
 
     fig_price = px.line(prices, title=f"{symbol} closing prices")
     fig_price.update_layout(showlegend=False, yaxis_title="Price", xaxis_title="")
-    st.plotly_chart(fig_price, use_container_width=True)
+    st.plotly_chart(fig_price, width="stretch")
 
     dd = drawdown_series(prices) * 100
     fig_dd = go.Figure(
         go.Scatter(x=dd.index, y=dd.values, fill="tozeroy", line={"color": "#d62728"})
     )
     fig_dd.update_layout(title=f"{symbol} drawdown", yaxis_title="Drawdown %", xaxis_title="")
-    st.plotly_chart(fig_dd, use_container_width=True)
+    st.plotly_chart(fig_dd, width="stretch")
 
 
 with tab_portfolio:
@@ -129,7 +145,7 @@ with tab_portfolio:
 
             fig_value = px.line(portfolio_value, title="Portfolio value (start = 100)")
             fig_value.update_layout(showlegend=False, yaxis_title="Value", xaxis_title="")
-            st.plotly_chart(fig_value, use_container_width=True)
+            st.plotly_chart(fig_value, width="stretch")
 
             corr = correlation_matrix(frame)
             fig_corr = px.imshow(
@@ -140,11 +156,11 @@ with tab_portfolio:
                 zmax=1,
                 title="Correlation of daily returns",
             )
-            st.plotly_chart(fig_corr, use_container_width=True)
+            st.plotly_chart(fig_corr, width="stretch")
 
             st.dataframe(
                 pd.DataFrame({"weight": pd.Series(weights).round(3)}),
-                use_container_width=False,
+                width="content",
             )
 
 
@@ -218,19 +234,19 @@ with tab_optimize:
             )
             fig_cloud.update_layout(legend={"orientation": "h", "y": -0.2})
 
-        st.plotly_chart(fig_cloud, use_container_width=True)
+        st.plotly_chart(fig_cloud, width="stretch")
 
         if report is not None:
             col_mv, col_ms = st.columns(2)
             col_mv.subheader("Minimum variance")
             col_mv.dataframe(
                 pd.DataFrame({"weight": pd.Series(report.minimum_variance.weights).round(3)}),
-                use_container_width=False,
+                width="content",
             )
             col_ms.subheader("Maximum Sharpe")
             col_ms.dataframe(
                 pd.DataFrame({"weight": pd.Series(report.maximum_sharpe.weights).round(3)}),
-                use_container_width=False,
+                width="content",
             )
 
         st.caption(
@@ -275,7 +291,7 @@ with tab_monitor:
             yaxis_title="Error (daily %)",
             xaxis_title="",
         )
-        st.plotly_chart(fig_scores, use_container_width=True)
+        st.plotly_chart(fig_scores, width="stretch")
         st.caption("Errors are measured against the absolute next-day return in daily percent.")
 
     st.subheader("Drift monitor")
@@ -297,3 +313,14 @@ with tab_monitor:
             f"Last {drift.recent_size} returns against the {drift.reference_size} before them. "
             "Drift is flagged at a PSI above 0.2 or a KS statistic above 0.15."
         )
+
+
+st.divider()
+st.markdown(
+    "<div style='text-align:center; color:gray; font-size:0.85rem;'>"
+    "Built by Eugen Goebel &middot; "
+    "<a href='https://github.com/eugen-goebel' target='_blank'>GitHub</a> &middot; "
+    "<a href='https://www.linkedin.com/in/eugen-goebel/' target='_blank'>LinkedIn</a>"
+    "</div>",
+    unsafe_allow_html=True,
+)
