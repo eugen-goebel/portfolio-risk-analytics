@@ -210,7 +210,7 @@ portfolio-risk-analytics/
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
 ├── reporting/     # One-page PDF factsheets (matplotlib + fpdf2)
-├── tests/         # 158 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 168 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
