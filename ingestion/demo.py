@@ -1,8 +1,10 @@
 """Deterministic demo data so the platform works offline.
 
 Generates a reproducible price series per symbol. The same symbol always
-produces the same series, which keeps tests stable and lets CI run without
-network access.
+produces the same series, on any day it runs, which keeps tests stable and
+lets CI run without network access. Only the bar dates track the calendar; the
+returns are fixed by the seeds, so realized volatility and the optimizer output
+never drift with the date.
 
 The named demo assets are shaped to behave like the things they stand for:
 bonds are calm, equity swings, gold sits in between. Each series is a shared
@@ -23,10 +25,11 @@ from ingestion.base import PriceBar
 # Every symbol loads on the same market factor, so the factor needs a fixed
 # seed of its own. The per-symbol seed only drives the idiosyncratic part.
 # This particular seed is one whose realized paths land near the profiles
-# below over the 750 days the dashboard asks for. Other seeds happen to draw
-# a two year bull run that would put the equity Sharpe ratio above two, which
-# reads as a broken demo rather than a good one.
-MARKET_SEED = 12345
+# below over the 750 days the dashboard asks for: equity Sharpe stays inside a
+# believable band and the two generic assets both earn a positive return, so
+# the optimizer's tangency portfolio is always defined. Other seeds happen to
+# draw a two year bull run that reads as a broken demo rather than a good one.
+MARKET_SEED = 60
 TRADING_DAYS = 252
 
 
@@ -55,6 +58,23 @@ def _market_factor(days: int) -> np.ndarray:
     return np.random.default_rng(MARKET_SEED).normal(size=days)
 
 
+def _weekday_calendar(count: int, end: date) -> list[date]:
+    """The ``count`` most recent weekdays ending on or before ``end``, in order.
+
+    Only the bar dates depend on ``end``; the price path itself is fixed by the
+    seeds. Skipping weekends here (instead of dropping their returns in the loop)
+    is what keeps the series from shifting with the day it is generated on.
+    """
+    days: list[date] = []
+    cursor = end
+    while len(days) < count:
+        if cursor.weekday() < 5:
+            days.append(cursor)
+        cursor -= timedelta(days=1)
+    days.reverse()
+    return days
+
+
 def generate_demo_bars(symbol: str, days: int = 500, start_price: float = 100.0) -> list[PriceBar]:
     profile = PROFILES.get(symbol, DEFAULT_PROFILE)
     rng = np.random.default_rng(zlib.crc32(symbol.encode()))
@@ -71,11 +91,8 @@ def generate_demo_bars(symbol: str, days: int = 500, start_price: float = 100.0)
 
     bars: list[PriceBar] = []
     price = start_price
-    day = date.today() - timedelta(days=days)
-    for r in daily_returns:
-        day += timedelta(days=1)
-        if day.weekday() >= 5:
-            continue
+    calendar = _weekday_calendar(len(daily_returns), date.today())
+    for day, r in zip(calendar, daily_returns, strict=True):
         # plain Python floats: psycopg2 rejects numpy scalars
         close = float(price * (1 + r))
         high = float(max(price, close) * (1 + abs(rng.normal(0, 0.003))))

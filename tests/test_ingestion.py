@@ -186,7 +186,7 @@ class TestDemoData:
 
     def test_correlation_follows_the_product_of_betas(self):
         # The tolerance carries the sampling error of a correlation over the
-        # ~540 bars the dashboard shows, which is around 0.04 per pair.
+        # 750 bars the dashboard shows, which is around 0.04 per pair.
         frame = pd.DataFrame({s: _close_series(s) for s in PROFILES})
         realized = frame.pct_change().dropna().corr()
         for a, b in itertools.combinations(PROFILES, 2):
