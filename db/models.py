@@ -23,6 +23,20 @@ class Asset(Base):
     )
 
 
+class DemoDataVersion(Base):
+    """Stamps the database with the demo-data version that populated it.
+
+    A hosted deploy (e.g. Streamlit Cloud) keeps its SQLite file across
+    redeploys, so without this stamp a changed generator would never reach the
+    live demo. The seeder rebuilds when the stamp is missing or out of date.
+    """
+
+    __tablename__ = "demo_data_version"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version: Mapped[str] = mapped_column(String(32))
+
+
 class DailyPrice(Base):
     __tablename__ = "daily_prices"
     __table_args__ = (UniqueConstraint("asset_id", "day", name="uq_price_per_day"),)

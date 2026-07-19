@@ -30,10 +30,9 @@ from analytics.metrics import (
 from analytics.optimize import OptimizationReport, optimize_portfolio
 from db.database import SessionLocal, init_db
 from db.models import Asset
+from ingestion.demo import DEMO_SYMBOLS
 
 st.set_page_config(page_title="Portfolio Risk Analytics", page_icon="📊", layout="wide")
-
-DEMO_SYMBOLS = ("demo-equity", "demo-bonds", "demo-gold")
 
 init_db()
 db = SessionLocal()
@@ -45,23 +44,20 @@ def stored_symbols() -> list[str]:
 
 @st.cache_resource
 def ensure_demo_data() -> None:
-    """Fill an empty database with the demo series, once per process.
+    """Seed the demo series once per process, rebuilding it when it is stale.
 
     Streamlit can run two scripts at the same time on a cold start. Without
     this cache both would see an empty database and both would insert the demo
     assets, which trips the unique constraint on assets.symbol. cache_resource
     runs the body a single time, under a lock.
 
-    A database that already holds prices is left untouched, so changing
-    generate_demo_bars only reaches a running deployment after a reboot.
+    The seeding itself lives in ingestion.demo_seed so it can be tested without
+    Streamlit. It rebuilds the demo assets when the database's version stamp is
+    missing or old, so a redeploy picks up a changed generator on its own.
     """
-    from ingestion.demo import generate_demo_bars
-    from ingestion.store import store_bars
+    from ingestion.demo_seed import ensure_demo_data as seed_demo_data
 
-    if db.scalar(select(Asset.id).limit(1)) is not None:
-        return
-    for symbol in DEMO_SYMBOLS:
-        store_bars(db, symbol, generate_demo_bars(symbol, days=750))
+    seed_demo_data(db)
 
 
 st.title("Portfolio Risk Analytics")

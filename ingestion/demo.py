@@ -52,6 +52,16 @@ PROFILES: dict[str, AssetProfile] = {
 }
 DEFAULT_PROFILE = AssetProfile(drift=0.06, volatility=0.16, beta=0.80)
 
+# The symbols the dashboard seeds when it holds no data of its own. They map to
+# the named profiles above; any other symbol falls back to DEFAULT_PROFILE.
+DEMO_SYMBOLS = ("demo-equity", "demo-bonds", "demo-gold")
+
+# Bump whenever generate_demo_bars changes its output. A hosted deploy keeps its
+# database across redeploys, so without a version stamp a changed generator
+# never reaches the live demo. "1" was the original calendar-dependent series;
+# "2" is the fixed generator that no longer drifts with the run date.
+DEMO_DATA_VERSION = "2"
+
 
 def _market_factor(days: int) -> np.ndarray:
     """Standardized shocks that every symbol loads on."""
