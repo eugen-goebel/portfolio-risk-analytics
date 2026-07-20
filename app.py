@@ -74,6 +74,11 @@ if symbols == sorted(DEMO_SYMBOLS):
         "Ingest real prices with `uv run main.py ingest SPY AAPL MSFT`."
     )
 
+# Lead the asset pickers with the equity demo. The bond series is deliberately
+# flat with a below-cash Sharpe, so opening on it reads as a dull demo; equity
+# is the more illustrative first view. Falls back to the first symbol otherwise.
+default_asset = symbols.index("demo-equity") if "demo-equity" in symbols else 0
+
 tab_asset, tab_portfolio, tab_optimize, tab_monitor = st.tabs(
     ["Single Asset", "Portfolio", "Optimization", "Model Monitor"]
 )
@@ -81,7 +86,7 @@ tab_asset, tab_portfolio, tab_optimize, tab_monitor = st.tabs(
 
 with tab_asset:
     col_select, col_rate = st.columns([2, 1])
-    symbol = col_select.selectbox("Asset", symbols)
+    symbol = col_select.selectbox("Asset", symbols, index=default_asset)
     risk_free = col_rate.number_input(
         "Risk free rate (yearly)", min_value=0.0, max_value=0.20, value=0.03, step=0.005
     )
@@ -253,7 +258,9 @@ with tab_optimize:
 
 with tab_monitor:
     col_monitor, col_test = st.columns([2, 1])
-    monitor_symbol = col_monitor.selectbox("Asset", symbols, key="monitor_asset")
+    monitor_symbol = col_monitor.selectbox(
+        "Asset", symbols, index=default_asset, key="monitor_asset"
+    )
     test_size = col_test.number_input("Test size (days)", min_value=30, value=250, step=10)
 
     monitor_prices = load_close_series(db, monitor_symbol)
