@@ -7,7 +7,7 @@ Run locally with:
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -148,7 +148,9 @@ def get_metrics(
 
 @app.get("/assets/{symbol}/forecast", response_model=ForecastReport, tags=["Metrics"])
 def get_forecast(
-    symbol: str, test_size: int = 250, db: Session = Depends(get_db)
+    symbol: str,
+    test_size: int = Query(250, ge=10, le=2000),
+    db: Session = Depends(get_db),
 ) -> ForecastReport:
     try:
         series = load_close_series(db, symbol)
@@ -163,8 +165,11 @@ def get_forecast(
 @app.get("/assets/{symbol}/montecarlo", response_model=MonteCarloReport, tags=["Metrics"])
 def get_monte_carlo(
     symbol: str,
-    horizon: int = 252,
-    n_paths: int = 2000,
+    # The simulation allocates a horizon by n_paths matrix, so both need a
+    # ceiling: unbounded, a single request sizes it arbitrarily and exhausts
+    # memory and CPU on a host anyone can reach.
+    horizon: int = Query(252, ge=1, le=1260),
+    n_paths: int = Query(2000, ge=1, le=5000),
     method: str = "bootstrap",
     seed: int | None = None,
     db: Session = Depends(get_db),
@@ -181,7 +186,10 @@ def get_monte_carlo(
 
 @app.get("/assets/{symbol}/var-validation", response_model=VarValidationReport, tags=["Metrics"])
 def get_var_validation(
-    symbol: str, window: int = 250, confidence: float = 0.95, db: Session = Depends(get_db)
+    symbol: str,
+    window: int = Query(250, ge=20, le=2000),
+    confidence: float = Query(0.95, gt=0.5, lt=1.0),
+    db: Session = Depends(get_db),
 ) -> VarValidationReport:
     try:
         series = load_close_series(db, symbol)
@@ -195,7 +203,10 @@ def get_var_validation(
 
 @app.get("/assets/{symbol}/drift", response_model=DriftReport, tags=["Metrics"])
 def get_drift(
-    symbol: str, reference_size: int = 500, recent_size: int = 60, db: Session = Depends(get_db)
+    symbol: str,
+    reference_size: int = Query(500, ge=10, le=5000),
+    recent_size: int = Query(60, ge=5, le=2000),
+    db: Session = Depends(get_db),
 ) -> DriftReport:
     try:
         series = load_close_series(db, symbol)
