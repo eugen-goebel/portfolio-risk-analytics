@@ -124,6 +124,24 @@ class TestMetrics:
     def test_montecarlo_unknown_symbol_is_404(self, client):
         assert client.get("/assets/nope/montecarlo").status_code == 404
 
+    def test_oversized_simulation_is_rejected(self, client):
+        # The simulation allocates horizon x n_paths, so one request with huge
+        # values would exhaust memory on a host anyone can reach. Both are
+        # capped, and an out-of-range value is refused before any work starts.
+        assert client.get("/assets/demo-a/montecarlo?n_paths=5000000").status_code == 422
+        assert client.get("/assets/demo-a/montecarlo?horizon=5000000").status_code == 422
+        assert client.get("/assets/demo-a/montecarlo?n_paths=0").status_code == 422
+
+    def test_other_analytics_sizes_are_capped(self, client):
+        for path in (
+            "/assets/demo-a/forecast?test_size=9999999",
+            "/assets/demo-a/var-validation?window=9999999",
+            "/assets/demo-a/var-validation?confidence=1.5",
+            "/assets/demo-a/drift?reference_size=9999999",
+            "/assets/demo-a/drift?recent_size=9999999",
+        ):
+            assert client.get(path).status_code == 422, path
+
     def test_var_validation(self, client):
         body = client.get("/assets/demo-a/var-validation?window=100").json()
         assert body["symbol"] == "demo-a"
