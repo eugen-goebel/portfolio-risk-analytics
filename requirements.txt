@@ -5,7 +5,7 @@
 # the demo runs the dashboard alone on SQLite.
 streamlit>=1.60.0
 pandas>=3.0.5
-numpy>=2.5.0
+numpy>=2.5.2
 plotly>=6.8.0
 sqlalchemy>=2.0.51
 pydantic>=2.13.0
