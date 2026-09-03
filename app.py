@@ -88,21 +88,57 @@ with tab_asset:
     col_select, col_rate = st.columns([2, 1])
     symbol = col_select.selectbox("Asset", symbols, index=default_asset)
     risk_free = col_rate.number_input(
-        "Risk free rate (yearly)", min_value=0.0, max_value=0.20, value=0.03, step=0.005
+        "Risk free rate (yearly)",
+        min_value=0.0,
+        max_value=0.20,
+        value=0.03,
+        step=0.005,
+        format="%.3f",
+        help=(
+            "Yearly return of a riskless investment, as a decimal: "
+            "0.03 means 3 percent. Only the Sharpe ratio uses it."
+        ),
     )
 
     prices = load_close_series(db, symbol)
     metrics = summarize(symbol, prices, risk_free)
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total return", f"{metrics.total_return_pct:+.1f}%")
-    m2.metric("Volatility (ann.)", f"{metrics.annualized_volatility_pct:.1f}%")
-    m3.metric("Sharpe ratio", f"{metrics.sharpe_ratio:.2f}")
-    m4.metric("Max drawdown", f"{metrics.max_drawdown_pct:.1f}%")
+    m1.metric(
+        "Total return",
+        f"{metrics.total_return_pct:+.1f}%",
+        help="Price change over the whole stored period, not annualized.",
+    )
+    m2.metric(
+        "Volatility (ann.)",
+        f"{metrics.annualized_volatility_pct:.1f}%",
+        help="Spread of daily returns, scaled to a year. Higher means a bumpier ride.",
+    )
+    m3.metric(
+        "Sharpe ratio",
+        f"{metrics.sharpe_ratio:.2f}",
+        help=(
+            "Return above the risk free rate per unit of volatility. "
+            "Higher is better; below 1 is generally considered weak."
+        ),
+    )
+    m4.metric(
+        "Max drawdown",
+        f"{metrics.max_drawdown_pct:.1f}%",
+        help="Largest peak-to-trough fall. The worst loss if bought at the top and sold at the bottom.",
+    )
 
     m5, m6, _, _ = st.columns(4)
-    m5.metric("VaR 95% (daily)", f"{metrics.var_95_pct:.1f}%")
-    m6.metric("Expected shortfall 95%", f"{metrics.expected_shortfall_95_pct:.1f}%")
+    m5.metric(
+        "VaR 95% (daily)",
+        f"{metrics.var_95_pct:.1f}%",
+        help="Value at Risk: on the worst 1 in 20 days, the loss was at least this large.",
+    )
+    m6.metric(
+        "Expected shortfall 95%",
+        f"{metrics.expected_shortfall_95_pct:.1f}%",
+        help="Average loss on those worst 5 percent of days, so it captures how bad the tail gets.",
+    )
 
     fig_price = px.line(prices, title=f"{symbol} closing prices")
     fig_price.update_layout(showlegend=False, yaxis_title="Price", xaxis_title="")
@@ -117,7 +153,24 @@ with tab_asset:
 
 
 with tab_portfolio:
-    chosen = st.multiselect("Assets", symbols, default=symbols[: min(3, len(symbols))])
+    col_assets_p, col_rate_p = st.columns([2, 1])
+    chosen = col_assets_p.multiselect("Assets", symbols, default=symbols[: min(3, len(symbols))])
+    # The Sharpe ratio below used a hardcoded 0.03 while the other two tabs
+    # each had their own input, so changing the rate elsewhere silently left
+    # this number untouched and the three tabs disagreed with each other.
+    portfolio_risk_free = col_rate_p.number_input(
+        "Risk free rate (yearly)",
+        min_value=0.0,
+        max_value=0.20,
+        value=0.03,
+        step=0.005,
+        format="%.3f",
+        key="portfolio_risk_free",
+        help=(
+            "Yearly return of a riskless investment, as a decimal: "
+            "0.03 means 3 percent. Only the Sharpe ratio uses it."
+        ),
+    )
     if len(chosen) < 2:
         st.info("Pick at least two assets to analyze a portfolio.")
     else:
@@ -138,11 +191,31 @@ with tab_portfolio:
             portfolio_value = (1 + returns).cumprod() * 100
 
             p1, p2, p3, p4, p5 = st.columns(5)
-            p1.metric("Volatility (ann.)", f"{annualized_volatility(returns) * 100:.1f}%")
-            p2.metric("Sharpe ratio", f"{sharpe_ratio(returns, 0.03):.2f}")
-            p3.metric("Max drawdown", f"{max_drawdown(portfolio_value) * 100:.1f}%")
-            p4.metric("VaR 95% (daily)", f"{historical_var(returns) * 100:.1f}%")
-            p5.metric("Expected shortfall 95%", f"{expected_shortfall(returns) * 100:.1f}%")
+            p1.metric(
+                "Volatility (ann.)",
+                f"{annualized_volatility(returns) * 100:.1f}%",
+                help="Spread of daily portfolio returns, scaled to a year.",
+            )
+            p2.metric(
+                "Sharpe ratio",
+                f"{sharpe_ratio(returns, portfolio_risk_free):.2f}",
+                help="Return above the risk free rate per unit of volatility. Higher is better.",
+            )
+            p3.metric(
+                "Max drawdown",
+                f"{max_drawdown(portfolio_value) * 100:.1f}%",
+                help="Largest peak-to-trough fall of the combined portfolio.",
+            )
+            p4.metric(
+                "VaR 95% (daily)",
+                f"{historical_var(returns) * 100:.1f}%",
+                help="On the worst 1 in 20 days, the loss was at least this large.",
+            )
+            p5.metric(
+                "Expected shortfall 95%",
+                f"{expected_shortfall(returns) * 100:.1f}%",
+                help="Average loss on those worst 5 percent of days.",
+            )
 
             fig_value = px.line(portfolio_value, title="Portfolio value (start = 100)")
             fig_value.update_layout(showlegend=False, yaxis_title="Value", xaxis_title="")
@@ -176,7 +249,12 @@ with tab_optimize:
         max_value=0.20,
         value=0.03,
         step=0.005,
+        format="%.3f",
         key="optimize_risk_free",
+        help=(
+            "Yearly return of a riskless investment, as a decimal: "
+            "0.03 means 3 percent. It sets which portfolio maximizes the Sharpe ratio."
+        ),
     )
 
     if len(opt_chosen) < 2:
