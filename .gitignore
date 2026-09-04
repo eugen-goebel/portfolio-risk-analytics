@@ -17,3 +17,8 @@ htmlcov/
 
 # Local agent config, not part of the project
 .claude/
+
+# Generated reports and exports. Every format the project can write,
+# not just the one that happened to be tested first.
+output/*
+!output/.gitkeep
