@@ -4,8 +4,13 @@
 ![Data pipeline](https://github.com/eugen-goebel/portfolio-risk-analytics/actions/workflows/pipeline-health.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit_Cloud-FF4B4B?style=flat)](https://eugen-goebel-portfolio-risk-analytics.streamlit.app/)
 
 Market data platform that ingests real daily prices, stores them in SQL and computes portfolio risk metrics: volatility, Sharpe ratio, maximum drawdown and asset correlations.
+
+> **Try it live:** [eugen-goebel-portfolio-risk-analytics.streamlit.app](https://eugen-goebel-portfolio-risk-analytics.streamlit.app/). The hosted demo runs on a deterministic synthetic series, so all four views work without a database of your own.
+
+![Dashboard](assets/dashboard-single-asset.png)
 
 Prices come from the public Yahoo Finance chart endpoint with no API key. Metrics are computed on adjusted closes, so dividends and splits are accounted for. The same code runs on SQLite for local work and PostgreSQL in production, and the CI suite runs against both.
 
@@ -210,7 +215,7 @@ portfolio-risk-analytics/
 ├── analytics/     # Metric functions and price loaders on pandas
 ├── api/           # FastAPI endpoints
 ├── reporting/     # One-page PDF factsheets (matplotlib + fpdf2)
-├── tests/         # 168 tests, run on SQLite and PostgreSQL in CI
+├── tests/         # 177 tests, run on SQLite and PostgreSQL in CI
 └── main.py        # CLI for ingestion and quick metric checks
 ```
 
